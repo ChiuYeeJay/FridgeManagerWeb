@@ -1,0 +1,8 @@
+---
+description: FridgeManager implementation specification
+alwaysApply: true
+---
+
+Read and follow @docs/SPEC_v3.md before making architectural or implementation
+decisions. Sections 3 and 4 are mandatory conventions and override generic
+framework recommendations when they conflict.

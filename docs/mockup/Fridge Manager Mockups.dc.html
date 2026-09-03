@@ -1,0 +1,540 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet data-dc-atomics>
+<meta name="design_doc_mode" content="canvas">
+<link rel="stylesheet" href="_ds/classical-86fec0b8-58af-4d63-a077-f43df6fb2203/styles.css">
+<script src="_ds/classical-86fec0b8-58af-4d63-a077-f43df6fb2203/_ds_bundle.js"></script>
+<style>
+body{margin:0;background:#e6e4e1;--color-danger:oklch(0.44 0.13 29);--color-danger-tint:oklch(0.95 0.03 32)}
+.dv-turn{padding:44px 48px 36px;border-bottom:1px solid rgba(0,0,0,.08);scroll-margin-top:16px}
+.dv-thd{display:flex;align-items:baseline;gap:10px;margin:0 0 22px}
+.dv-tid{font:600 10px ui-monospace,Menlo,monospace;padding:3px 7px;background:#201f1d;color:#f3f2f2;border-radius:4px;text-decoration:none}
+.dv-tname{font:600 13px/1.2 var(--font-body);color:#201f1d}
+.dv-opts{display:flex;flex-wrap:wrap;gap:34px;align-items:flex-start}
+.dv-opt{flex:none;display:flex;flex-direction:column;gap:9px;scroll-margin-top:16px}
+.dv-oid{font:600 10.5px ui-monospace,Menlo,monospace;padding:3px 7px;background:rgba(0,0,0,.08);color:#201f1d;border-radius:5px;text-decoration:none}
+.dv-olabel{display:flex;align-items:baseline;gap:8px;font:400 11px/1.3 var(--font-body);color:rgba(0,0,0,.55)}
+.dv-card{max-width:100%;background:var(--color-bg);border:1px solid rgba(0,0,0,.1);border-radius:8px;box-shadow:0 1px 3px rgba(0,0,0,.07);overflow:hidden}
+.dv-opt:target .dv-oid{background:#b68235;color:#fff}
+.dv-next{margin:24px 0 0;font:12px/1.6 var(--font-body);color:rgba(0,0,0,.5)}
+.fig{font-variant-numeric:tabular-nums}
+</style>
+</helmet>
+
+<section class="dv-turn" id="t1">
+<div class="dv-thd"><a class="dv-tid" href="#t1">1</a><span class="dv-tname">Fridge Manager — five screens from Spec v3</span></div>
+
+<sc-if value="{{ showNotes }}" hint-placeholder-val="{{ true }}">
+<div style="max-width:940px;margin:0 0 34px;padding:26px 30px;background:var(--color-bg);border:1px solid var(--color-divider);border-radius:8px">
+<div style="font:400 10px/1 var(--font-body);letter-spacing:.14em;text-transform:uppercase;color:var(--color-accent);margin-bottom:10px">Assumptions &amp; reasoning</div>
+<div style="display:grid;grid-template-columns:1fr 1fr;gap:26px 40px;font-family:var(--font-body);font-size:13px;line-height:1.6">
+<div>
+<div style="font-family:var(--font-heading);font-weight:600;font-size:16px;margin-bottom:5px">What I took from the spec</div>
+<p style="margin:0;text-align:justify">Desktop-only static screens for §8.1–§8.5. Every field, filter, badge and action on these screens is named in the spec; nothing was invented. Today is treated as 3 September 2026, so the seeded dates produce two Expired and four Expiring-soon items (§6.4). Capacity figures are internally consistent: 47 of 65 units used, 23 active items, and Jonas Weber sits exactly at his quota of 3 — the two conditions §9 asks for so the guards can be demonstrated.</p>
+</div>
+<div>
+<div style="font-family:var(--font-heading);font-weight:600;font-size:16px;margin-bottom:5px">Where I had to decide</div>
+<p style="margin:0;text-align:justify">Classical is a mono palette with no danger role, so Expired is drawn as a deep oxblood stroke — the only colour added, used as an outline and never as a fill. Bootstrap card/badge conventions are replaced by the system's bordered <span style="font-style:italic">.card</span> and tinted <span style="font-style:italic">.tag</span>. Capacity is drawn as a schematic elevation on the dashboard — a reading aid, not a drag target.</p>
+</div>
+</div>
+</div>
+</sc-if>
+
+<div class="dv-opts">
+
+<div class="dv-opt" id="1a">
+<div class="dv-olabel"><a class="dv-oid" href="#1a">1a</a>Dashboard (§8.1)</div>
+<div class="dv-card" style="width:1180px" data-screen-label="Dashboard">
+<div class="nav" style="padding:14px 32px">
+<span class="nav-brand">Fridge Manager</span>
+<a href="#1a" aria-current="page">Dashboard</a>
+<a href="#1c">Food</a>
+<a href="#1f">Users</a>
+<span style="width:1px;height:18px;background:var(--color-divider)"></span>
+<span class="text-muted" style="font-size:13px">Mika Ando · Admin</span>
+</div>
+<div style="padding:34px 32px 38px">
+<div style="display:flex;align-items:flex-end;justify-content:space-between;border-bottom:1px solid var(--color-divider);padding-bottom:16px">
+<div>
+<div style="font:400 10px/1 var(--font-body);letter-spacing:.14em;text-transform:uppercase;color:var(--color-accent);margin-bottom:8px">Kitchen 4F · one refrigerator</div>
+<h1 style="font-size:40px;font-weight:400;margin:0">The state of the fridge</h1>
+</div>
+<div class="text-muted fig" style="font-size:13px">Thursday, 3 September 2026</div>
+</div>
+
+<div style="display:grid;grid-template-columns:repeat(4,1fr);margin:0 0 30px">
+<div style="padding:22px 24px 20px 0">
+<div class="fig" style="font-family:var(--font-heading);font-weight:400;font-size:52px;line-height:1">23</div>
+<div class="text-muted" style="font-size:12px;letter-spacing:.06em;text-transform:uppercase;margin-top:4px">Active items</div>
+</div>
+<div style="padding:22px 24px 20px;border-left:1px solid var(--color-divider)">
+<div class="fig" style="font-family:var(--font-heading);font-weight:400;font-size:52px;line-height:1;color:var(--color-accent-700)">4</div>
+<div class="text-muted" style="font-size:12px;letter-spacing:.06em;text-transform:uppercase;margin-top:4px">Expiring soon</div>
+</div>
+<div style="padding:22px 24px 20px;border-left:1px solid var(--color-divider)">
+<div class="fig" style="font-family:var(--font-heading);font-weight:400;font-size:52px;line-height:1;color:var(--color-danger)">2</div>
+<div class="text-muted" style="font-size:12px;letter-spacing:.06em;text-transform:uppercase;margin-top:4px">Expired</div>
+</div>
+<div style="padding:22px 24px 20px;border-left:1px solid var(--color-divider)">
+<div class="fig" style="font-family:var(--font-heading);font-weight:400;font-size:52px;line-height:1">7</div>
+<div class="text-muted" style="font-size:12px;letter-spacing:.06em;text-transform:uppercase;margin-top:4px">Shared items</div>
+</div>
+</div>
+
+<div style="border-top:1px solid var(--color-divider);border-bottom:1px solid var(--color-divider);padding:20px 0 22px;margin-bottom:30px">
+<div style="display:flex;align-items:baseline;justify-content:space-between;margin-bottom:12px">
+<h4 style="margin:0">Overall utilisation</h4>
+<div class="fig" style="font-family:var(--font-heading);font-size:18px">47 <span class="text-muted" style="font-size:14px">/ 65 units · 72%</span></div>
+</div>
+<div style="height:10px;border:1px solid var(--color-divider);border-radius:2px;overflow:hidden;background:transparent">
+<div style="width:72%;height:100%;background:repeating-linear-gradient(135deg,var(--color-accent-400) 0 5px,var(--color-accent-300) 5px 10px)"></div>
+</div>
+</div>
+
+<div style="display:grid;grid-template-columns:1.25fr 1px 1fr;gap:32px">
+<div>
+<div style="display:flex;align-items:baseline;justify-content:space-between;margin-bottom:14px">
+<h4 style="margin:0">Where things sit</h4>
+<span class="text-muted fig" style="font-size:11px">47 of 65 units · chip width ∝ size</span>
+</div>
+<sc-if value="{{ showFridgeDiagram }}" hint-placeholder-val="{{ true }}">
+<div style="border:1px solid var(--color-neutral-500);border-radius:var(--radius-lg);padding:12px;background:var(--color-neutral-100);display:flex;flex-direction:column;gap:11px">
+<div>
+<div style="display:flex;justify-content:space-between;align-items:baseline;margin-bottom:6px"><span style="font-family:var(--font-heading);font-size:15px">Shelf A — Top</span><span class="fig text-muted" style="font-size:11px">18 / 20 units · 2 free</span></div>
+<div style="display:flex;gap:4px;height:52px"><div style="flex:2;border:1px solid var(--color-accent-500);border-radius:2px;padding:4px 6px;font-size:10px;line-height:1.3;overflow:hidden;white-space:nowrap;text-overflow:ellipsis">Oat milk<br><span class="text-muted" style="">Priya</span></div><div style="flex:2;border:1px solid var(--color-accent-500);border-radius:2px;padding:4px 6px;font-size:10px;line-height:1.3;overflow:hidden;white-space:nowrap;text-overflow:ellipsis">Cold brew<br><span class="text-muted" style="">Tom</span></div><div style="flex:3;border:1px solid var(--color-accent-500);border-radius:2px;padding:4px 6px;font-size:10px;line-height:1.3;overflow:hidden;white-space:nowrap;text-overflow:ellipsis">Sparkling water<br><span class="text-muted" style="">Mika</span></div><div style="flex:3;border:1px solid var(--color-danger);border-radius:2px;padding:4px 6px;font-size:10px;line-height:1.3;overflow:hidden;white-space:nowrap;text-overflow:ellipsis;color:var(--color-danger)">Leftover pizza<br><span class="" style="opacity:.75">expired 2 Sep</span></div><div style="flex:2;border:1px solid var(--color-accent-500);border-radius:2px;padding:4px 6px;font-size:10px;line-height:1.3;overflow:hidden;white-space:nowrap;text-overflow:ellipsis">Kimchi<br><span class="text-muted" style="">Mika</span></div><div style="flex:1;border:1px solid var(--color-danger);border-radius:2px;padding:4px 6px;font-size:10px;line-height:1.3;overflow:hidden;white-space:nowrap;text-overflow:ellipsis;color:var(--color-danger)">Hummus</div><div style="flex:2;border:1px solid var(--color-accent-500);border-radius:2px;padding:4px 6px;font-size:10px;line-height:1.3;overflow:hidden;white-space:nowrap;text-overflow:ellipsis">Yogurt<br><span class="text-muted" style="">Tom</span></div><div style="flex:1;border:1px solid var(--color-accent-500);border-radius:2px;padding:4px 6px;font-size:10px;line-height:1.3;overflow:hidden;white-space:nowrap;text-overflow:ellipsis">Berries</div><div style="flex:2;border:1px solid var(--color-accent-500);border-radius:2px;padding:4px 6px;font-size:10px;line-height:1.3;overflow:hidden;white-space:nowrap;text-overflow:ellipsis">Pesto<br><span class="text-muted" style="">Jonas</span></div><div style="flex:2;border:1px dashed var(--color-neutral-400);border-radius:2px;background:repeating-linear-gradient(45deg,transparent 0 4px,color-mix(in srgb,var(--color-text) 6%,transparent) 4px 8px);display:flex;align-items:center;justify-content:center;font-size:10px;color:var(--color-neutral-600);overflow:hidden"></div></div>
+</div>
+<div style="height:1px;background:var(--color-neutral-400)"></div>
+<div>
+<div style="display:flex;justify-content:space-between;align-items:baseline;margin-bottom:6px"><span style="font-family:var(--font-heading);font-size:15px">Shelf B — Middle</span><span class="fig text-muted" style="font-size:11px">14 / 20 units · 6 free</span></div>
+<div style="display:flex;gap:4px;height:52px"><div style="flex:3;border:1px solid var(--color-accent-500);border-radius:2px;padding:4px 6px;font-size:10px;line-height:1.3;overflow:hidden;white-space:nowrap;text-overflow:ellipsis">Teriyaki bento<br><span class="" style="color:var(--color-accent-700)">tomorrow</span></div><div style="flex:2;border:1px solid var(--color-accent-500);border-radius:2px;padding:4px 6px;font-size:10px;line-height:1.3;overflow:hidden;white-space:nowrap;text-overflow:ellipsis">Soba<br><span class="text-muted" style="">Priya</span></div><div style="flex:3;border:1px solid var(--color-accent-500);border-radius:2px;padding:4px 6px;font-size:10px;line-height:1.3;overflow:hidden;white-space:nowrap;text-overflow:ellipsis">Salad greens<br><span class="text-muted" style="">Tom</span></div><div style="flex:2;border:1px solid var(--color-accent-500);border-radius:2px;padding:4px 6px;font-size:10px;line-height:1.3;overflow:hidden;white-space:nowrap;text-overflow:ellipsis">Tofu<br><span class="text-muted" style="">Jonas</span></div><div style="flex:2;border:1px solid var(--color-accent-500);border-radius:2px;padding:4px 6px;font-size:10px;line-height:1.3;overflow:hidden;white-space:nowrap;text-overflow:ellipsis">Miso<br><span class="text-muted" style="">Mika</span></div><div style="flex:2;border:1px solid var(--color-accent-500);border-radius:2px;padding:4px 6px;font-size:10px;line-height:1.3;overflow:hidden;white-space:nowrap;text-overflow:ellipsis">Eggs ×6<br><span class="text-muted" style="">Priya</span></div><div style="flex:6;border:1px dashed var(--color-neutral-400);border-radius:2px;background:repeating-linear-gradient(45deg,transparent 0 4px,color-mix(in srgb,var(--color-text) 6%,transparent) 4px 8px);display:flex;align-items:center;justify-content:center;font-size:10px;color:var(--color-neutral-600);overflow:hidden">6 free</div></div>
+</div>
+<div style="height:1px;background:var(--color-neutral-400)"></div>
+<div>
+<div style="display:flex;justify-content:space-between;align-items:baseline;margin-bottom:6px"><span style="font-family:var(--font-heading);font-size:15px">Shelf C — Lower</span><span class="fig text-muted" style="font-size:11px">11 / 15 units · 4 free</span></div>
+<div style="display:flex;gap:4px;height:52px"><div style="flex:2;border:1px solid var(--color-accent-500);border-radius:2px;padding:4px 6px;font-size:10px;line-height:1.3;overflow:hidden;white-space:nowrap;text-overflow:ellipsis">Cheddar<br><span class="text-muted" style="">Tom</span></div><div style="flex:1;border:1px solid var(--color-accent-500);border-radius:2px;padding:4px 6px;font-size:10px;line-height:1.3;overflow:hidden;white-space:nowrap;text-overflow:ellipsis">Butter</div><div style="flex:3;border:1px solid var(--color-accent-500);border-radius:2px;padding:4px 6px;font-size:10px;line-height:1.3;overflow:hidden;white-space:nowrap;text-overflow:ellipsis">Carrots<br><span class="text-muted" style="">Mika</span></div><div style="flex:3;border:1px solid var(--color-accent-500);border-radius:2px;padding:4px 6px;font-size:10px;line-height:1.3;overflow:hidden;white-space:nowrap;text-overflow:ellipsis">Curry<br><span class="" style="color:var(--color-accent-700)">5 Sep</span></div><div style="flex:2;border:1px solid var(--color-accent-500);border-radius:2px;padding:4px 6px;font-size:10px;line-height:1.3;overflow:hidden;white-space:nowrap;text-overflow:ellipsis">Starter<br><span class="text-muted" style="">Priya</span></div><div style="flex:4;border:1px dashed var(--color-neutral-400);border-radius:2px;background:repeating-linear-gradient(45deg,transparent 0 4px,color-mix(in srgb,var(--color-text) 6%,transparent) 4px 8px);display:flex;align-items:center;justify-content:center;font-size:10px;color:var(--color-neutral-600);overflow:hidden">4 free</div></div>
+</div>
+<div style="height:1px;background:var(--color-neutral-400)"></div>
+<div>
+<div style="display:flex;justify-content:space-between;align-items:baseline;margin-bottom:6px"><span style="font-family:var(--font-heading);font-size:15px">Shelf D — Door</span><span class="fig text-muted" style="font-size:11px">4 / 10 units · 6 free</span></div>
+<div style="display:flex;gap:4px;height:52px"><div style="flex:1;border:1px solid var(--color-accent-500);border-radius:2px;padding:4px 6px;font-size:10px;line-height:1.3;overflow:hidden;white-space:nowrap;text-overflow:ellipsis">Soy</div><div style="flex:1;border:1px solid var(--color-accent-500);border-radius:2px;padding:4px 6px;font-size:10px;line-height:1.3;overflow:hidden;white-space:nowrap;text-overflow:ellipsis">Sriracha</div><div style="flex:2;border:1px solid var(--color-accent-500);border-radius:2px;padding:4px 6px;font-size:10px;line-height:1.3;overflow:hidden;white-space:nowrap;text-overflow:ellipsis">Juice<br><span class="text-muted" style="">shared</span></div><div style="flex:6;border:1px dashed var(--color-neutral-400);border-radius:2px;background:repeating-linear-gradient(45deg,transparent 0 4px,color-mix(in srgb,var(--color-text) 6%,transparent) 4px 8px);display:flex;align-items:center;justify-content:center;font-size:10px;color:var(--color-neutral-600);overflow:hidden">6 free</div></div>
+</div>
+</div>
+<div style="display:flex;gap:18px;margin-top:12px;font-size:11px" class="text-muted">
+<span style="display:flex;align-items:center;gap:6px"><span style="width:14px;height:10px;border:1px solid var(--color-accent-500);border-radius:2px"></span>Active</span>
+<span style="display:flex;align-items:center;gap:6px"><span style="width:14px;height:10px;border:1px solid var(--color-danger);border-radius:2px"></span>Expired</span>
+<span style="display:flex;align-items:center;gap:6px"><span style="width:14px;height:10px;border:1px dashed var(--color-neutral-400);border-radius:2px;background:repeating-linear-gradient(45deg,transparent 0 3px,color-mix(in srgb,var(--color-text) 8%,transparent) 3px 6px)"></span>Free units</span>
+</div>
+</sc-if>
+</div>
+<div style="background:var(--color-divider)"></div>
+<div>
+<h4 style="margin:0 0 14px">Per-user usage</h4>
+<table class="table">
+<thead><tr><th>Member</th><th style="text-align:right">Used / quota</th></tr></thead>
+<tbody>
+<tr><td>Mika Ando <span class="tag tag-outline" style="margin-left:6px">Admin</span></td><td class="fig" style="text-align:right">6 / 10</td></tr>
+<tr><td>Priya Raman</td><td class="fig" style="text-align:right">7 / 8</td></tr>
+<tr><td>Tom Deakin</td><td class="fig" style="text-align:right">7 / 8</td></tr>
+<tr><td>Jonas Weber</td><td style="text-align:right"><span class="fig">3 / 3</span> <span class="tag" style="margin-left:6px;border:1px solid var(--color-danger);color:var(--color-danger)">At limit</span></td></tr>
+</tbody>
+</table>
+<div class="text-muted" style="font-size:12px;margin-top:14px;text-align:justify">Quota counts active items only; consumed, missing and discarded items free their unit and their slot immediately.</div>
+<a class="btn btn-primary btn-block" href="#1e" style="margin-top:18px">Add an item</a>
+</div>
+</div>
+</div>
+</div>
+</div>
+
+<div class="dv-opt" id="1c">
+<div class="dv-olabel"><a class="dv-oid" href="#1c">1c</a>Food list — filter bar and card grid (§8.2)</div>
+<div class="dv-card" style="width:1180px" data-screen-label="Food list">
+<div class="nav" style="padding:14px 32px">
+<span class="nav-brand">Fridge Manager</span>
+<a href="#1a">Dashboard</a>
+<a href="#1c" aria-current="page">Food</a>
+<a href="#1f">Users</a>
+<span style="width:1px;height:18px;background:var(--color-divider)"></span>
+<span class="text-muted" style="font-size:13px">Mika Ando · Admin</span>
+</div>
+<div style="padding:30px 32px 38px">
+<div style="display:flex;align-items:flex-end;justify-content:space-between;margin-bottom:20px">
+<div>
+<div style="font:400 10px/1 var(--font-body);letter-spacing:.14em;text-transform:uppercase;color:var(--color-accent);margin-bottom:8px">Inventory</div>
+<h1 style="font-size:34px;font-weight:400;margin:0">Food items</h1>
+</div>
+<a class="btn btn-primary" href="#1e">Add an item</a>
+</div>
+
+<div style="border-top:1px solid var(--color-divider);border-bottom:1px solid var(--color-divider);padding:16px 0;margin-bottom:24px">
+<div style="display:flex;gap:14px;align-items:flex-end;flex-wrap:wrap">
+<div class="field" style="width:250px"><label for="q">Search by name</label><input class="input" id="q" type="text" value="k" placeholder="Search…"></div>
+<div class="field" style="width:150px"><label for="cat">Category</label><select class="input" id="cat"><option>All categories</option><option>Drink</option><option>Snack</option><option>Meal</option><option>Ingredient</option><option>Other</option></select></div>
+<div class="field" style="width:150px"><label for="shelf">Shelf</label><select class="input" id="shelf"><option>All shelves</option><option>A — Top</option><option>B — Middle</option><option>C — Lower</option><option>D — Door</option></select></div>
+<div class="field" style="width:140px"><label for="st">Status</label><select class="input" id="st" defaultValue="Active"><option>Active</option><option>Consumed</option><option>Missing</option><option>Discarded</option></select></div>
+<div style="display:flex;gap:16px;padding-bottom:8px;flex-wrap:wrap">
+<label class="radio"><input type="checkbox" name="f1"><span class="dot"></span>My items</label>
+<label class="radio"><input type="checkbox" name="f2" defaultChecked="{{ true }}"><span class="dot"></span>Shared</label>
+<label class="radio"><input type="checkbox" name="f3"><span class="dot"></span>Expiring soon</label>
+<label class="radio"><input type="checkbox" name="f4"><span class="dot"></span>Expired</label>
+</div>
+</div>
+<div class="text-muted" style="font-size:12px;margin-top:12px;display:flex;justify-content:space-between">
+<span>Filters apply as you type — search debounced 300 ms, everything else on change.</span>
+<span class="fig">6 of 23 active items</span>
+</div>
+</div>
+
+<div style="display:grid;grid-template-columns:repeat(3,1fr);gap:22px">
+
+<div class="card">
+<div class="plate" style="height:132px;background:var(--color-neutral-200);display:grid;place-items:center"><span style="font-size:11px;color:var(--color-neutral-600);letter-spacing:.06em">PHOTO · drink</span></div>
+<div style="display:flex;justify-content:space-between;align-items:flex-start;gap:8px">
+<div class="card-title">Oat milk (1 L)</div>
+<span class="tag tag-accent">Expiring soon</span>
+</div>
+<div class="card-body" style="display:flex;flex-direction:column;gap:3px">
+<span>Priya Raman · Drink</span>
+<span class="fig">Expires 6 Sep 2026 · Medium (2)</span>
+</div>
+<div class="card-meta" style="justify-content:space-between"><span>Shelf A — Top</span><span class="tag tag-outline">Shared</span></div>
+</div>
+
+<div class="card">
+<div class="plate" style="height:132px;background:var(--color-neutral-200);display:grid;place-items:center"><span style="font-size:11px;color:var(--color-neutral-600);letter-spacing:.06em">PHOTO · meal</span></div>
+<div style="display:flex;justify-content:space-between;align-items:flex-start;gap:8px">
+<div class="card-title">Chicken teriyaki bento</div>
+<span class="tag tag-accent">Expiring soon</span>
+</div>
+<div class="card-body" style="display:flex;flex-direction:column;gap:3px">
+<span>Tom Deakin · Meal</span>
+<span class="fig">Expires 4 Sep 2026 · Large (3)</span>
+</div>
+<div class="card-meta"><span>Shelf B — Middle</span></div>
+</div>
+
+<div class="card" style="border-color:var(--color-danger)">
+<div class="plate" style="height:132px;background:var(--color-neutral-200);display:grid;place-items:center"><span style="font-size:11px;color:var(--color-neutral-600);letter-spacing:.06em">PHOTO · meal</span></div>
+<div style="display:flex;justify-content:space-between;align-items:flex-start;gap:8px">
+<div class="card-title">Leftover pizza (4 slices)</div>
+<span class="tag" style="border:1px solid var(--color-danger);color:var(--color-danger)">Expired</span>
+</div>
+<div class="card-body" style="display:flex;flex-direction:column;gap:3px">
+<span>Jonas Weber · Meal</span>
+<span class="fig" style="color:var(--color-danger)">Expired 2 Sep 2026 · Large (3)</span>
+</div>
+<div class="card-meta" style="justify-content:space-between"><span>Shelf A — Top</span><a class="btn btn-ghost" href="#1d" style="font-size:12px">Discard</a></div>
+</div>
+
+<div class="card">
+<div class="plate" style="height:132px;background:var(--color-neutral-200);display:grid;place-items:center"><span style="font-size:11px;color:var(--color-neutral-600);letter-spacing:.06em">PHOTO · ingredient</span></div>
+<div style="display:flex;justify-content:space-between;align-items:flex-start;gap:8px">
+<div class="card-title">Kimchi jar</div>
+<span class="tag tag-neutral">Normal</span>
+</div>
+<div class="card-body" style="display:flex;flex-direction:column;gap:3px">
+<span>Mika Ando · Ingredient</span>
+<span class="fig">Expires 12 Dec 2026 · Medium (2)</span>
+</div>
+<div class="card-meta" style="justify-content:space-between"><span>Shelf A — Top</span><span class="tag tag-outline">Shared</span></div>
+</div>
+
+<div class="card">
+<div class="plate" style="height:132px;background:var(--color-neutral-200);display:grid;place-items:center"><span style="font-size:11px;color:var(--color-neutral-600);letter-spacing:.06em">PHOTO · drink</span></div>
+<div style="display:flex;justify-content:space-between;align-items:flex-start;gap:8px">
+<div class="card-title">Sparkling water ×4</div>
+<span class="tag tag-neutral">Normal</span>
+</div>
+<div class="card-body" style="display:flex;flex-direction:column;gap:3px">
+<span>Mika Ando · Drink</span>
+<span class="fig">Expires 30 Mar 2027 · Large (3)</span>
+</div>
+<div class="card-meta" style="justify-content:space-between"><span>Shelf A — Top</span><span class="tag tag-outline">Shared</span></div>
+</div>
+
+<div class="card" style="border-color:var(--color-danger)">
+<div class="plate" style="height:132px;background:var(--color-neutral-200);display:grid;place-items:center"><span style="font-size:11px;color:var(--color-neutral-600);letter-spacing:.06em">PHOTO · snack</span></div>
+<div style="display:flex;justify-content:space-between;align-items:flex-start;gap:8px">
+<div class="card-title">Hummus tub</div>
+<span class="tag" style="border:1px solid var(--color-danger);color:var(--color-danger)">Expired</span>
+</div>
+<div class="card-body" style="display:flex;flex-direction:column;gap:3px">
+<span>Priya Raman · Snack</span>
+<span class="fig" style="color:var(--color-danger)">Expired 2 Sep 2026 · Small (1)</span>
+</div>
+<div class="card-meta"><span>Shelf A — Top</span></div>
+</div>
+
+</div>
+</div>
+</div>
+</div>
+
+<div class="dv-opt" id="1d">
+<div class="dv-olabel"><a class="dv-oid" href="#1d">1d</a>Food detail — owner or admin view (§8.3)</div>
+<div class="dv-card" style="width:860px" data-screen-label="Food detail">
+<div class="nav" style="padding:14px 28px">
+<span class="nav-brand">Fridge Manager</span>
+<a href="#1a">Dashboard</a>
+<a href="#1c" aria-current="page">Food</a>
+<a href="#1f">Users</a>
+</div>
+<div style="padding:28px 32px 36px">
+<a class="btn btn-ghost" href="#1c" style="margin-bottom:14px">← Back to food list</a>
+<div style="display:grid;grid-template-columns:300px 1fr;gap:32px">
+<div>
+<div class="plate" style="height:300px;background:var(--color-neutral-200);display:grid;place-items:center"><span style="font-size:11px;color:var(--color-neutral-600);letter-spacing:.06em">PHOTO · uploaded</span></div>
+<div class="text-muted" style="font-size:11px;margin-top:6px">uploads/8f1c…-a2.webp · falls back to the category plate when empty</div>
+</div>
+<div>
+<div style="display:flex;gap:8px;margin-bottom:10px">
+<span class="tag tag-accent">Expiring soon</span>
+<span class="tag tag-outline">Shared</span>
+<span class="tag tag-neutral">Active</span>
+</div>
+<h1 style="font-size:34px;font-weight:400;margin:0 0 4px">Oat milk (1 L)</h1>
+<div class="text-muted" style="font-size:13px;margin-bottom:20px">Owned by Priya Raman · added 28 Aug 2026</div>
+<table class="table" style="margin-bottom:22px">
+<tbody>
+<tr><th style="width:170px;border-bottom:1px solid var(--color-divider)">Category</th><td>Drink</td></tr>
+<tr><th style="border-bottom:1px solid var(--color-divider)">Expiration date</th><td class="fig">6 September 2026 <span class="text-muted">· in 3 days</span></td></tr>
+<tr><th style="border-bottom:1px solid var(--color-divider)">Size</th><td>Medium <span class="text-muted fig">· 2 units</span></td></tr>
+<tr><th style="border-bottom:1px solid var(--color-divider)">Shared</th><td>Yes — anyone may take some</td></tr>
+<tr><th style="border-bottom:1px solid var(--color-divider)">Shelf</th><td>A — Top <span class="text-muted fig">· 2 of 20 units free</span></td></tr>
+<tr><th style="border-bottom:1px solid var(--color-divider)">Position note</th><td>Back left, behind the water bottles</td></tr>
+<tr><th style="border-bottom:1px solid var(--color-divider)">Note</th><td style="text-align:justify">Barista edition — fine for coffee. Please leave at least a cup for Friday morning.</td></tr>
+<tr><th style="border-bottom:1px solid var(--color-divider)">Last updated</th><td class="fig">1 Sep 2026, 08:14 UTC</td></tr>
+</tbody>
+</table>
+<div style="display:flex;gap:10px;flex-wrap:wrap;padding-top:4px;border-top:1px solid var(--color-divider);padding-top:18px">
+<a class="btn btn-primary" href="#1e">Edit</a>
+<button class="btn btn-secondary" type="button">Mark as consumed</button>
+<button class="btn btn-secondary" type="button">Mark as missing</button>
+<button class="btn btn-secondary" type="button" style="border-color:var(--color-danger);color:var(--color-danger)">Mark as discarded</button>
+</div>
+<div class="text-muted" style="font-size:12px;margin-top:12px">Visible because you are the owner or an admin. Status buttons disappear once the item is no longer active.</div>
+</div>
+</div>
+</div>
+</div>
+</div>
+
+<div class="dv-opt" id="1e">
+<div class="dv-olabel"><a class="dv-oid" href="#1e">1e</a>Food form — shelf capacity rejection (§6.3, §8.4)</div>
+<div class="dv-card" style="width:860px" data-screen-label="Food form">
+<div class="nav" style="padding:14px 28px">
+<span class="nav-brand">Fridge Manager</span>
+<a href="#1a">Dashboard</a>
+<a href="#1c" aria-current="page">Food</a>
+<a href="#1f">Users</a>
+</div>
+<div style="padding:28px 32px 36px">
+<div style="font:400 10px/1 var(--font-body);letter-spacing:.14em;text-transform:uppercase;color:var(--color-accent);margin-bottom:8px">New item</div>
+<h1 style="font-size:32px;font-weight:400;margin:0 0 20px">Put something in the fridge</h1>
+
+<sc-if value="{{ showEdgeStates }}" hint-placeholder-val="{{ true }}">
+<div style="border:1px solid var(--color-danger);border-radius:var(--radius-md);padding:14px 16px;margin-bottom:24px;background:var(--color-danger-tint)">
+<div style="font-size:10px;letter-spacing:.12em;text-transform:uppercase;color:var(--color-danger);margin-bottom:4px">Could not save</div>
+<div style="font-size:14px">Shelf A has 2 units remaining; this item requires 3 units.</div>
+<div class="text-muted" style="font-size:12px;margin-top:6px">Your entries are kept. Choose a smaller size, or a shelf with room — B has 6 free, D has 6.</div>
+</div>
+</sc-if>
+
+<div style="display:grid;grid-template-columns:1fr 260px;gap:34px">
+<div style="display:flex;flex-direction:column;gap:18px">
+<div class="field"><label for="n">Name</label><input class="input" id="n" type="text" value="Sparkling water ×6"></div>
+<div style="display:grid;grid-template-columns:1fr 1fr;gap:18px">
+<div class="field"><label for="c2">Category</label><select class="input" id="c2"><option>Drink</option><option>Snack</option><option>Meal</option><option>Ingredient</option><option>Other</option></select></div>
+<div class="field"><label for="d2">Expiration date</label><input class="input fig" id="d2" type="text" value="2027-03-30"></div>
+</div>
+<div class="field">
+<label>Size</label>
+<div class="seg">
+<label class="seg-opt"><input type="radio" name="size">Small · 1</label>
+<label class="seg-opt"><input type="radio" name="size">Medium · 2</label>
+<label class="seg-opt"><input type="radio" name="size" defaultChecked="{{ true }}">Large · 3</label>
+</div>
+</div>
+<div class="field">
+<label for="sh2">Shelf</label>
+<select class="input" id="sh2" style="border-color:var(--color-danger)" aria-invalid="true"><option>A — Top</option><option>B — Middle</option><option>C — Lower</option><option>D — Door</option></select>
+<div style="display:flex;justify-content:space-between;align-items:center;margin-top:8px;font-size:12px">
+<span style="color:var(--color-danger)" class="fig">Shelf A: 2 of 20 units free — not enough for 3</span>
+<span class="text-muted">live check</span>
+</div>
+<div style="height:8px;border:1px solid var(--color-danger);border-radius:2px;overflow:hidden;margin-top:6px"><div style="width:90%;height:100%;background:var(--color-danger-tint)"></div></div>
+</div>
+<div class="field"><div style="font-size:12px;margin-bottom:5px;color:color-mix(in srgb,var(--color-text) 70%,transparent)">Shared</div><div><label class="radio"><input type="checkbox" defaultChecked="{{ true }}"><span class="dot"></span>Anyone on the team may take some</label></div></div>
+<div class="field"><label for="pn">Position note</label><input class="input" id="pn" type="text" value="Right side, stacked" placeholder="e.g. back left, behind the milk"></div>
+<div class="field"><label for="nt">Note</label><textarea class="input" id="nt" placeholder="Anything the team should know"></textarea></div>
+</div>
+
+<div style="border-left:1px solid var(--color-divider);padding-left:28px;display:flex;flex-direction:column;gap:22px">
+<div>
+<h5 style="margin:0 0 10px">Photo</h5>
+<div class="plate" style="height:150px;background:var(--color-neutral-200);display:grid;place-items:center;text-align:center"><span style="font-size:11px;color:var(--color-neutral-600);letter-spacing:.05em;padding:0 12px">DROP A PHOTO<br>or choose a file</span></div>
+<button class="btn btn-secondary btn-block" type="button">Choose file…</button>
+<div class="text-muted" style="font-size:11px;margin-top:8px">JPG, PNG or WebP · 5 MB maximum. Left empty, the category plate is used.</div>
+</div>
+<div style="border-top:1px solid var(--color-divider);padding-top:18px">
+<h5 style="margin:0 0 10px">Your allowance</h5>
+<div style="display:flex;justify-content:space-between;font-size:13px"><span>Active items</span><span class="fig">6 / 10</span></div>
+<div style="height:8px;border:1px solid var(--color-divider);border-radius:2px;overflow:hidden;margin-top:8px"><div style="width:60%;height:100%;background:var(--color-accent-400)"></div></div>
+<div class="text-muted" style="font-size:11px;margin-top:8px">Room for 4 more.</div>
+</div>
+<div style="border-top:1px solid var(--color-divider);padding-top:18px;display:flex;flex-direction:column;gap:8px">
+<button class="btn btn-primary btn-block" type="button" style="margin:0">Save item</button>
+<a class="btn btn-secondary btn-block" href="#1c" style="margin:0">Cancel</a>
+</div>
+</div>
+</div>
+</div>
+</div>
+</div>
+
+<div class="dv-opt" id="1f">
+<div class="dv-olabel"><a class="dv-oid" href="#1f">1f</a>Admin users — quota rejection (§7.4, §8.5)</div>
+<div class="dv-card" style="width:1060px" data-screen-label="Admin users">
+<div class="nav" style="padding:14px 32px">
+<span class="nav-brand">Fridge Manager</span>
+<a href="#1a">Dashboard</a>
+<a href="#1c">Food</a>
+<a href="#1f" aria-current="page">Users</a>
+<span style="width:1px;height:18px;background:var(--color-divider)"></span>
+<span class="text-muted" style="font-size:13px">Mika Ando · Admin</span>
+</div>
+<div style="padding:30px 32px 38px">
+<div style="display:flex;align-items:flex-end;justify-content:space-between;margin-bottom:20px">
+<div>
+<div style="font:400 10px/1 var(--font-body);letter-spacing:.14em;text-transform:uppercase;color:var(--color-accent);margin-bottom:8px">Admin only</div>
+<h1 style="font-size:34px;font-weight:400;margin:0">Members</h1>
+</div>
+<div class="text-muted" style="font-size:12px;max-width:330px;text-align:justify">Members are never deleted. Disabling one blocks their login and hides them from owner lists while their items stay on the shelves.</div>
+</div>
+
+<sc-if value="{{ showEdgeStates }}" hint-placeholder-val="{{ true }}">
+<div style="border:1px solid var(--color-danger);border-radius:var(--radius-md);padding:14px 16px;margin-bottom:22px;background:var(--color-danger-tint)">
+<div style="font-size:10px;letter-spacing:.12em;text-transform:uppercase;color:var(--color-danger);margin-bottom:4px">Quota not changed</div>
+<div style="font-size:14px">Priya Raman currently holds 7 active items; a quota of 5 would put her over. Set 7 or higher, or ask her to clear items first.</div>
+</div>
+</sc-if>
+
+<table class="table" style="margin-bottom:30px">
+<thead><tr><th>Username</th><th>Email</th><th style="width:130px">Quota</th><th style="width:110px">Active items</th><th style="width:110px">Status</th><th style="width:170px">Actions</th></tr></thead>
+<tbody>
+<tr>
+<td>mika <span class="tag tag-outline" style="margin-left:6px">Admin</span></td>
+<td class="text-muted">admin@fridge.local</td>
+<td class="fig">10</td>
+<td class="fig">6</td>
+<td><span class="tag tag-neutral">Active</span></td>
+<td><div style="display:flex;gap:4px"><button class="btn btn-ghost" type="button">Edit quota</button><button class="btn btn-ghost" type="button" disabled>Disable</button></div></td>
+</tr>
+<tr>
+<td>priya</td>
+<td class="text-muted">priya@fridge.local</td>
+<td><input class="input fig" type="text" value="5" style="width:72px;min-height:30px;border-color:var(--color-danger)" aria-invalid="true"></td>
+<td class="fig">7</td>
+<td><span class="tag tag-neutral">Active</span></td>
+<td><div style="display:flex;gap:4px"><button class="btn btn-primary" type="button" style="padding:5px 10px">Save</button><button class="btn btn-ghost" type="button">Cancel</button></div></td>
+</tr>
+<tr>
+<td>tom</td>
+<td class="text-muted">tom@fridge.local</td>
+<td class="fig">8</td>
+<td class="fig">7</td>
+<td><span class="tag tag-neutral">Active</span></td>
+<td><div style="display:flex;gap:4px"><button class="btn btn-ghost" type="button">Edit quota</button><button class="btn btn-ghost" type="button">Disable</button></div></td>
+</tr>
+<tr>
+<td>jonas</td>
+<td class="text-muted">jonas@fridge.local</td>
+<td class="fig">3</td>
+<td><span class="fig">3</span> <span class="tag" style="margin-left:4px;border:1px solid var(--color-danger);color:var(--color-danger)">Full</span></td>
+<td><span class="tag tag-neutral">Active</span></td>
+<td><div style="display:flex;gap:4px"><button class="btn btn-ghost" type="button">Edit quota</button><button class="btn btn-ghost" type="button">Disable</button></div></td>
+</tr>
+<tr style="opacity:.6">
+<td>hana</td>
+<td class="text-muted">hana@fridge.local</td>
+<td class="fig">5</td>
+<td class="fig">0</td>
+<td><span class="tag tag-outline">Disabled</span></td>
+<td><div style="display:flex;gap:4px"><button class="btn btn-ghost" type="button">Edit quota</button><button class="btn btn-ghost" type="button">Enable</button></div></td>
+</tr>
+</tbody>
+</table>
+
+<div style="border-top:1px solid var(--color-divider);padding-top:24px;display:grid;grid-template-columns:1fr 300px;gap:36px">
+<div>
+<sc-if value="{{ formClosed }}" hint-placeholder-val="{{ true }}">
+<div style="display:flex;align-items:baseline;gap:18px">
+<button class="btn btn-primary" type="button" onClick="{{ openForm }}">+ Create member</button>
+<span class="text-muted" style="font-size:12px">Four members active · one disabled</span>
+</div>
+</sc-if>
+<sc-if value="{{ formOpen }}" hint-placeholder-val="{{ false }}">
+<div>
+<div style="display:flex;align-items:baseline;justify-content:space-between;margin-bottom:14px">
+<h4 style="margin:0">Add a member</h4>
+<button class="btn btn-ghost" type="button" onClick="{{ closeForm }}">Close</button>
+</div>
+<div style="display:grid;grid-template-columns:repeat(4,1fr);gap:14px;align-items:end">
+<div class="field"><label for="u3">Username</label><input class="input" id="u3" type="text" placeholder="e.g. lena"></div>
+<div class="field"><label for="e3">Email</label><input class="input" id="e3" type="text" placeholder="lena@fridge.local"></div>
+<div class="field"><label for="p3">Password</label><input class="input" id="p3" type="password" value="········"></div>
+<div class="field"><label for="q3">Quota</label><input class="input fig" id="q3" type="text" value="5"></div>
+</div>
+<div style="display:flex;gap:10px;margin-top:16px">
+<button class="btn btn-primary" type="button">Create member</button>
+<button class="btn btn-secondary" type="button" onClick="{{ closeForm }}">Cancel</button>
+</div>
+</div>
+</sc-if>
+</div>
+<div style="border-left:1px solid var(--color-divider);padding-left:28px">
+<h5 style="margin:0 0 10px">Fridge total</h5>
+<div style="display:flex;justify-content:space-between;font-size:13px;padding:6px 0;border-bottom:1px solid var(--color-divider)"><span>Quotas granted</span><span class="fig">29 items</span></div>
+<div style="display:flex;justify-content:space-between;font-size:13px;padding:6px 0;border-bottom:1px solid var(--color-divider)"><span>Currently held</span><span class="fig">23 items</span></div>
+<div style="display:flex;justify-content:space-between;font-size:13px;padding:6px 0"><span>Units in use</span><span class="fig">47 / 65</span></div>
+<div class="text-muted" style="font-size:11px;margin-top:10px;text-align:justify">Quotas may exceed shelf capacity; the capacity guard is the binding constraint.</div>
+</div>
+</div>
+</div>
+</div>
+</div>
+
+</div>
+<p class="dv-next">Try next: "give me a mobile version of <a class="dv-oid" href="#1c">1c</a>" · "tighten the shelf diagram in <a class="dv-oid" href="#1a">1a</a>" · "add the empty-list and non-owner states"</p>
+</section>
+
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props="{&quot;showNotes&quot;:{&quot;editor&quot;:&quot;boolean&quot;,&quot;default&quot;:true,&quot;tsType&quot;:&quot;boolean&quot;,&quot;section&quot;:&quot;Mockup board&quot;},&quot;showEdgeStates&quot;:{&quot;editor&quot;:&quot;boolean&quot;,&quot;default&quot;:true,&quot;tsType&quot;:&quot;boolean&quot;,&quot;section&quot;:&quot;Mockup board&quot;},&quot;showFridgeDiagram&quot;:{&quot;editor&quot;:&quot;boolean&quot;,&quot;default&quot;:true,&quot;tsType&quot;:&quot;boolean&quot;,&quot;section&quot;:&quot;Mockup board&quot;}}">
+class Component extends DCLogic {
+  constructor(props) {
+    super(props);
+    this.state = { memberForm: false };
+  }
+  renderVals() {
+    const open = this.props.memberFormOpen === true || !!(this.state && this.state.memberForm);
+    return {
+      formOpen: open,
+      formClosed: !open,
+      openForm: () => this.setState({ memberForm: true }),
+      closeForm: () => this.setState({ memberForm: false }),
+      showNotes: this.props.showNotes ?? true,
+      showEdgeStates: this.props.showEdgeStates ?? true,
+      showFridgeDiagram: this.props.showFridgeDiagram ?? true,
+    };
+  }
+}
+</script>
+</body>
+</html>
