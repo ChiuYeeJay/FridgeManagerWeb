@@ -1,0 +1,160 @@
+@page "/food/{Id:int}"
+@attribute [Authorize]
+
+<PageTitle>@( _item?.Name ?? "Food" )</PageTitle>
+
+@if (_notFound)
+{
+    <a class="fm-btn fm-btn-ghost" href="food">← Back to food list</a>
+    <p class="text-muted" style="margin-top:16px">That item is not in the fridge.</p>
+}
+else if (_item is null)
+{
+    <p class="text-muted">Opening the label…</p>
+}
+else
+{
+    <a class="fm-btn fm-btn-ghost" href="food">← Back to food list</a>
+    @if (_error is not null)
+    {
+        <div class="fm-alert-danger" style="margin-top:18px">
+            <div class="fm-alert-kicker">Could not update</div>
+            <div class="fm-alert-body">@_error</div>
+        </div>
+    }
+    <div class="detail-grid" style="margin-top:14px">
+        <div>
+            <div class="detail-plate">
+                <img src="@FoodDisplay.ImageUrl(_item)" alt="" />
+            </div>
+            <div class="text-muted" style="font-size:11px;margin-top:6px">
+                @(string.IsNullOrEmpty(_item.ImagePath)
+                    ? "Category plate — upload a photo in a later phase"
+                    : _item.ImagePath)
+            </div>
+        </div>
+        <div>
+            <div class="detail-tags">
+                <span class="fm-tag @BadgeClass">@FoodDisplay.BadgeLabel(_state)</span>
+                @if (_item.IsShared)
+                {
+                    <span class="fm-tag fm-tag-outline">Shared</span>
+                }
+                <span class="fm-tag fm-tag-neutral">@_item.Status</span>
+            </div>
+            <h1 class="page-title">@_item.Name</h1>
+            <div class="text-muted" style="font-size:13px;margin-bottom:20px">
+                Owned by @FoodDisplay.OwnerLabel(_item.Owner) · added @FoodDisplay.DateLabel(DateOnly.FromDateTime(_item.CreatedAt))
+            </div>
+            <table class="fm-table" style="margin-bottom:22px">
+                <tbody>
+                    <tr><th style="width:170px">Category</th><td>@_item.Category</td></tr>
+                    <tr><th>Expiration date</th><td class="fig">@FoodDisplay.ExpirationDetail(_item.ExpirationDate, _today)</td></tr>
+                    <tr><th>Size</th><td>@FoodDisplay.SizeDetail(_item.SizeUnits)</td></tr>
+                    <tr><th>Shared</th><td>@(_item.IsShared ? "Yes — anyone may take some" : "No")</td></tr>
+                    <tr>
+                        <th>Shelf</th>
+                        <td>@_item.Shelf.Name <span class="text-muted fig">· @_shelfRemaining of @_item.Shelf.CapacityUnits units free</span></td>
+                    </tr>
+                    <tr><th>Position note</th><td>@(string.IsNullOrEmpty(_item.PositionNote) ? "—" : _item.PositionNote)</td></tr>
+                    <tr><th>Note</th><td>@(string.IsNullOrEmpty(_item.Note) ? "—" : _item.Note)</td></tr>
+                    <tr><th>Last updated</th><td class="fig">@FoodDisplay.UtcStamp(_item.UpdatedAt)</td></tr>
+                </tbody>
+            </table>
+            @if (_canModify)
+            {
+                <div class="detail-actions">
+                    <a class="fm-btn fm-btn-primary" href="@($"food/{_item.Id}/edit")">Edit</a>
+                    @if (_item.Status == FoodStatus.Active)
+                    {
+                        <button type="button" class="fm-btn fm-btn-secondary" disabled="@_busy" @onclick="() => ChangeStatusAsync(FoodStatus.Consumed)">Mark as consumed</button>
+                        <button type="button" class="fm-btn fm-btn-secondary" disabled="@_busy" @onclick="() => ChangeStatusAsync(FoodStatus.Missing)">Mark as missing</button>
+                        <button type="button" class="fm-btn fm-btn-danger-outline" disabled="@_busy" @onclick="() => ChangeStatusAsync(FoodStatus.Discarded)">Mark as discarded</button>
+                    }
+                </div>
+                <p class="text-muted" style="font-size:12px;margin-top:12px">
+                    Visible because you are the owner or an admin. Status buttons disappear once the item is no longer active.
+                </p>
+            }
+        </div>
+    </div>
+}
+
+@code {
+    [Parameter]
+    public int Id { get; set; }
+
+    [Inject]
+    private IInventoryService Inventory { get; set; } = default!;
+
+    [Inject]
+    private ICapacityService Capacity { get; set; } = default!;
+
+    [CascadingParameter]
+    private Task<AuthenticationState> AuthState { get; set; } = default!;
+
+    private readonly DateOnly _today = DateOnly.FromDateTime(DateTime.UtcNow);
+    private FoodItem? _item;
+    private bool _notFound;
+    private bool _canModify;
+    private bool _busy;
+    private string? _error;
+    private int _shelfRemaining;
+    private ExpiryState _state;
+    private ClaimsPrincipal _user = new();
+    private int _loadedId = int.MinValue;
+
+    private string BadgeClass => _state switch
+    {
+        ExpiryState.ExpiringSoon => "fm-tag-accent",
+        ExpiryState.Expired => "fm-tag-danger",
+        _ => "fm-tag-neutral"
+    };
+
+    protected override async Task OnParametersSetAsync()
+    {
+        if (Id == _loadedId)
+        {
+            return;
+        }
+
+        _loadedId = Id;
+        await LoadAsync();
+    }
+
+    private async Task LoadAsync()
+    {
+        _error = null;
+        _user = (await AuthState).User;
+        _item = await Inventory.GetItemAsync(Id);
+        _notFound = _item is null;
+        if (_item is null)
+        {
+            return;
+        }
+
+        _state = ExpiryRules.Of(_item.ExpirationDate, _today);
+        _canModify = UserClaims.CanModify(_user, _item);
+        _shelfRemaining = await Capacity.GetShelfRemainingAsync(_item.ShelfId);
+    }
+
+    private async Task ChangeStatusAsync(FoodStatus status)
+    {
+        _busy = true;
+        try
+        {
+            var result = await Inventory.ChangeStatusAsync(Id, status, _user);
+            if (!result.Success)
+            {
+                _error = result.Error;
+                return;
+            }
+
+            await LoadAsync();
+        }
+        finally
+        {
+            _busy = false;
+        }
+    }
+}

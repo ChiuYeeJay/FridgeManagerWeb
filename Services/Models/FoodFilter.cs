@@ -12,4 +12,5 @@ public class FoodFilter
     public FoodStatus? Status { get; set; } = FoodStatus.Active;
     public bool ExpiringSoon { get; set; }
     public bool Expired { get; set; }
+    public string? CurrentUserId { get; set; }
 }

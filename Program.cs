@@ -45,6 +45,7 @@ builder.Services.AddAuthorizationBuilder()
 
 builder.Services.AddSingleton<IEmailSender<ApplicationUser>, IdentityNoOpEmailSender>();
 builder.Services.AddScoped<IInventoryService, InventoryService>();
+builder.Services.AddScoped<ICapacityService, CapacityService>();
 
 var app = builder.Build();
 

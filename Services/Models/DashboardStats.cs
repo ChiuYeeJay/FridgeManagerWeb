@@ -3,7 +3,7 @@ using FridgeManager.Data.Enums;
 
 namespace FridgeManager.Services.Models;
 
-public sealed class FridgeOverview
+public sealed class DashboardStats
 {
     public int ActiveCount { get; init; }
     public int ExpiringSoonCount { get; init; }
@@ -16,18 +16,14 @@ public sealed class FridgeOverview
     public IReadOnlyList<ShelfBand> Shelves { get; init; } = [];
     public IReadOnlyList<MemberUsage> Members { get; init; } = [];
 
-    public static FridgeOverview From(IReadOnlyList<FoodItem> items, DateOnly today)
+    public static DashboardStats From(
+        IReadOnlyList<Shelf> shelves,
+        IReadOnlyList<ApplicationUser> users,
+        DateOnly today)
     {
-        var active = items.Where(i => i.Status == FoodStatus.Active).ToList();
-        var shelves = active
-            .Select(i => i.Shelf)
-            .DistinctBy(s => s.Id)
-            .OrderBy(s => s.SortOrder)
-            .ToList();
-
         var bands = shelves.Select(shelf =>
         {
-            var onShelf = active.Where(i => i.ShelfId == shelf.Id).ToList();
+            var onShelf = shelf.Items;
             var used = onShelf.Sum(i => i.SizeUnits);
             var chips = onShelf
                 .OrderBy(i => i.ExpirationDate)
@@ -40,22 +36,30 @@ public sealed class FridgeOverview
             return new ShelfBand(shelf.Name, used, shelf.CapacityUnits, chips);
         }).ToList();
 
-        var members = active
+        var usageByOwner = shelves
+            .SelectMany(s => s.Items)
             .GroupBy(i => i.OwnerId)
-            .Select(g =>
+            .ToDictionary(g => g.Key, g => g.Count());
+
+        var members = users
+            .Select(user =>
             {
-                var owner = g.First().Owner;
-                var used = g.Count();
-                return new MemberUsage(FoodDisplay.OwnerLabel(owner), used, owner.ItemQuota, used >= owner.ItemQuota);
+                var used = usageByOwner.GetValueOrDefault(user.Id);
+                return new MemberUsage(
+                    FoodDisplay.OwnerLabel(user),
+                    used,
+                    user.ItemQuota,
+                    used >= user.ItemQuota);
             })
             .OrderByDescending(m => m.AtLimit)
             .ThenBy(m => m.Name)
             .ToList();
 
-        var usedUnits = active.Sum(i => i.SizeUnits);
-        var totalCapacity = shelves.Sum(s => s.CapacityUnits);
+        var usedUnits = bands.Sum(b => b.Used);
+        var totalCapacity = bands.Sum(b => b.Capacity);
+        var active = shelves.SelectMany(s => s.Items).ToList();
 
-        return new FridgeOverview
+        return new DashboardStats
         {
             ActiveCount = active.Count,
             ExpiringSoonCount = active.Count(i => ExpiryRules.Of(i.ExpirationDate, today) == ExpiryState.ExpiringSoon),

@@ -1,0 +1,135 @@
+@page "/food/new"
+@page "/food/{Id:int}/edit"
+@attribute [Authorize]
+
+<PageTitle>@(IsEdit ? "Edit item" : "New item")</PageTitle>
+
+@if (_loading)
+{
+    <p class="text-muted">Preparing the form…</p>
+}
+else if (_blocked is not null)
+{
+    <a class="fm-btn fm-btn-ghost" href="food">← Back to food list</a>
+    <p class="text-muted" style="margin-top:16px">@_blocked</p>
+}
+else
+{
+    <div class="eyebrow">@(IsEdit ? "Edit item" : "New item")</div>
+    <h1 class="page-title" style="margin-bottom:20px">@(IsEdit ? "Change what’s on the shelf" : "Put something in the fridge")</h1>
+
+    @if (_error is not null)
+    {
+        <div class="fm-alert-danger">
+            <div class="fm-alert-kicker">Could not save</div>
+            <div class="fm-alert-body">@_error</div>
+            <div class="fm-alert-hint">@RoomHint</div>
+        </div>
+    }
+
+    <EditForm Model="Form" OnValidSubmit="SaveAsync">
+        <DataAnnotationsValidator />
+        <div class="form-grid">
+            <div class="form-stack">
+                <div class="fm-field">
+                    <label for="item-name">Name</label>
+                    <InputText id="item-name" class="fm-input" @bind-Value="Form.Name" />
+                    <ValidationMessage For="() => Form.Name" />
+                </div>
+                <div class="form-two">
+                    <div class="fm-field">
+                        <label for="item-category">Category</label>
+                        <InputSelect id="item-category" class="fm-input" @bind-Value="Form.Category">
+                            @foreach (var category in Enum.GetValues<FoodCategory>())
+                            {
+                                <option value="@category">@category</option>
+                            }
+                        </InputSelect>
+                    </div>
+                    <div class="fm-field">
+                        <label for="item-expiry">Expiration date</label>
+                        <InputDate id="item-expiry" class="fm-input fig" @bind-Value="Form.ExpirationDate" />
+                    </div>
+                </div>
+                <div class="fm-field">
+                    <span class="fm-field-label">Size</span>
+                    <InputRadioGroup @bind-Value="Form.SizeUnits">
+                        <div class="fm-seg">
+                            <label class="fm-seg-opt"><InputRadio Value="@(1)" />Small · 1</label>
+                            <label class="fm-seg-opt"><InputRadio Value="@(2)" />Medium · 2</label>
+                            <label class="fm-seg-opt"><InputRadio Value="@(3)" />Large · 3</label>
+                        </div>
+                    </InputRadioGroup>
+                    <ValidationMessage For="() => Form.SizeUnits" />
+                </div>
+                <div class="fm-field">
+                    <label for="item-shelf">Shelf</label>
+                    <InputSelect id="item-shelf" class="@ShelfInputClass" @bind-Value="Form.ShelfId">
+                        @foreach (var shelf in _shelves)
+                        {
+                            <option @key="shelf.ShelfId" value="@shelf.ShelfId">@shelf.Name</option>
+                        }
+                    </InputSelect>
+                    @if (SelectedShelf is not null)
+                    {
+                        <div class="capacity-line @(Insufficient ? "is-short" : null)">
+                            <span class="fig">@SelectedShelf.Name: @LiveRemaining of @SelectedShelf.CapacityUnits units free@(Insufficient ? $" — not enough for {Form.SizeUnits}" : "")</span>
+                            <span class="text-muted">live check</span>
+                        </div>
+                        <div class="bar @(Insufficient ? "bar-danger" : null)" style="margin-top:6px;height:8px">
+                            <div class="bar-fill" style="width:@UsedPercent%"></div>
+                        </div>
+                    }
+                    <ValidationMessage For="() => Form.ShelfId" />
+                </div>
+                <div class="fm-field">
+                    <span class="fm-field-label">Shared</span>
+                    <label class="fm-check">
+                        <InputCheckbox @bind-Value="Form.IsShared" />
+                        Anyone on the team may take some
+                    </label>
+                </div>
+                <div class="fm-field">
+                    <label for="item-position">Position note</label>
+                    <InputText id="item-position" class="fm-input" @bind-Value="Form.PositionNote" placeholder="e.g. back left, behind the milk" />
+                </div>
+                <div class="fm-field">
+                    <label for="item-note">Note</label>
+                    <InputTextArea id="item-note" class="fm-input" @bind-Value="Form.Note" placeholder="Anything the team should know" />
+                </div>
+            </div>
+            <aside class="form-aside">
+                <div>
+                    <h5>Photo</h5>
+                    <div class="form-plate">
+                        <img src="@FoodDisplay.CategoryImage(Form.Category)" alt="" />
+                    </div>
+                    <button class="fm-btn fm-btn-secondary fm-btn-block" type="button" disabled style="margin-top:10px">Choose file…</button>
+                    <div class="text-muted" style="font-size:11px;margin-top:8px">JPG, PNG or WebP · 5 MB maximum. Left empty, the category plate is used. Upload arrives in a later phase.</div>
+                </div>
+                @if (_allowance is not null)
+                {
+                    <div style="border-top:1px solid var(--color-divider);padding-top:18px">
+                        <h5>Your allowance</h5>
+                        <div style="display:flex;justify-content:space-between;font-size:13px">
+                            <span>Active items</span>
+                            <span class="fig">@_allowance.Used / @_allowance.Quota</span>
+                        </div>
+                        <div class="bar" style="margin-top:8px;height:8px">
+                            <div class="bar-fill" style="width:@AllowancePercent%"></div>
+                        </div>
+                        <div class="text-muted" style="font-size:11px;margin-top:8px">
+                            @(_allowance.Used >= _allowance.Quota
+                                ? "You are at your limit."
+                                : $"Room for {_allowance.Quota - _allowance.Used} more.")
+                        </div>
+                    </div>
+                }
+                <div style="border-top:1px solid var(--color-divider);padding-top:18px;display:flex;flex-direction:column;gap:8px">
+                    <button class="fm-btn fm-btn-primary fm-btn-block" type="submit" disabled="@_saving">@(_saving ? "Saving…" : "Save item")</button>
+                    <a class="fm-btn fm-btn-secondary fm-btn-block" href="@CancelHref">Cancel</a>
+                </div>
+            </aside>
+        </div>
+    </EditForm>
+}

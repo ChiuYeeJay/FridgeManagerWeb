@@ -1,5 +1,6 @@
 using System.Globalization;
 using FridgeManager.Data.Entities;
+using FridgeManager.Data.Enums;
 
 namespace FridgeManager.Services;
 
@@ -15,9 +16,37 @@ public static class FoodDisplay
         _ => $"{sizeUnits} units"
     };
 
+    public static string SizeDetail(int sizeUnits) => sizeUnits switch
+    {
+        1 => "Small · 1 unit",
+        2 => "Medium · 2 units",
+        3 => "Large · 3 units",
+        _ => $"{sizeUnits} units"
+    };
+
+    public static string ExpirationDetail(DateOnly date, DateOnly today)
+    {
+        var label = date.ToString("d MMMM yyyy", English);
+        var days = date.DayNumber - today.DayNumber;
+        var relative = days switch
+        {
+            < 0 => $"expired {Math.Abs(days)} day{(Math.Abs(days) == 1 ? "" : "s")} ago",
+            0 => "today",
+            1 => "tomorrow",
+            _ => $"in {days} days"
+        };
+        return $"{label} · {relative}";
+    }
+
+    public static string UtcStamp(DateTime utc)
+        => utc.ToString("d MMM yyyy, HH:mm UTC", English);
+
+    public static string CategoryImage(FoodCategory category)
+        => $"/images/categories/{category.ToString().ToLowerInvariant()}.webp";
+
     public static string ImageUrl(FoodItem item)
         => string.IsNullOrEmpty(item.ImagePath)
-            ? $"/images/categories/{item.Category.ToString().ToLowerInvariant()}.webp"
+            ? CategoryImage(item.Category)
             : item.ImagePath;
 
     public static string OwnerLabel(ApplicationUser owner)

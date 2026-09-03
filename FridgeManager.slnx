@@ -1,0 +1,4 @@
+<Solution>
+  <Project Path="FridgeManager.csproj" />
+  <Project Path="tests/FridgeManager.Tests/FridgeManager.Tests.csproj" />
+</Solution>
