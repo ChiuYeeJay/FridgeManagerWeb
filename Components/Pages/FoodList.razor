@@ -1,0 +1,45 @@
+@page "/food"
+@attribute [Authorize]
+
+<PageTitle>Food</PageTitle>
+
+<div class="page-header">
+    <div>
+        <div class="eyebrow">Inventory</div>
+        <h1 class="page-title">Food items</h1>
+    </div>
+</div>
+
+@if (_items is null)
+{
+    <p class="text-muted">Loading the shelves…</p>
+}
+else if (_items.Count == 0)
+{
+    <p class="text-muted">Nothing on the shelves yet.</p>
+}
+else
+{
+    <p class="text-muted" style="font-size:12px;margin-bottom:24px">
+        <span class="fig">@_items.Count items</span>
+    </p>
+    <div class="food-grid">
+        @foreach (var item in _items)
+        {
+            <FoodCard @key="item.Id" Item="item" Today="_today" />
+        }
+    </div>
+}
+
+@code {
+    [Inject]
+    private IInventoryService Inventory { get; set; } = default!;
+
+    private List<FoodItem>? _items;
+    private readonly DateOnly _today = DateOnly.FromDateTime(DateTime.UtcNow);
+
+    protected override async Task OnInitializedAsync()
+    {
+        _items = await Inventory.GetItemsAsync(new FoodFilter());
+    }
+}

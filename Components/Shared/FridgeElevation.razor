@@ -1,0 +1,42 @@
+@using FridgeManager.Services.Models
+
+<div class="fridge-case">
+    @foreach (var (shelf, index) in Shelves.Select((s, i) => (s, i)))
+    {
+        @if (index > 0)
+        {
+            <div style="height:1px;background:var(--color-neutral-400)"></div>
+        }
+        <div>
+            <div class="fridge-shelf-head">
+                <span class="fridge-shelf-name">@shelf.Name</span>
+                <span class="fig text-muted" style="font-size:11px">@shelf.Used / @shelf.Capacity units · @shelf.Remaining free</span>
+            </div>
+            <div class="fridge-row">
+                @foreach (var chip in shelf.Chips)
+                {
+                    <div class="fridge-chip @(chip.Expired ? "fridge-chip-expired" : null)" style="flex: @chip.SizeUnits">
+                        @chip.Name<br />
+                        <span class="@(chip.Expired ? null : "text-muted")" style="@(chip.Expired ? "opacity:.75" : null)">@chip.Subtitle</span>
+                    </div>
+                }
+                @if (shelf.Remaining > 0)
+                {
+                    <div class="fridge-chip fridge-chip-free" style="flex: @shelf.Remaining">
+                        @shelf.Remaining free
+                    </div>
+                }
+            </div>
+        </div>
+    }
+</div>
+<div class="fridge-legend">
+    <span><span class="fridge-legend-swatch"></span>Active</span>
+    <span><span class="fridge-legend-swatch expired"></span>Expired</span>
+    <span><span class="fridge-legend-swatch free"></span>Free units</span>
+</div>
+
+@code {
+    [Parameter, EditorRequired]
+    public IReadOnlyList<ShelfBand> Shelves { get; set; } = [];
+}

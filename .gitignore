@@ -201,3 +201,8 @@ __pycache__/
 
 # Windows thumbnail cache files
 Thumbs.db
+
+# User-uploaded food photos (keep the folder)
+wwwroot/uploads/*
+!wwwroot/uploads/.gitkeep
+

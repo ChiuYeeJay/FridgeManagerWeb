@@ -1,0 +1,48 @@
+@using FridgeManager.Services
+
+<div class="food-card @(Expired ? "food-card-expired" : null)">
+    <div class="food-card-plate">
+        <img src="@FoodDisplay.ImageUrl(Item)" alt="" />
+    </div>
+    <div class="food-card-head">
+        <h3 class="food-card-title">@Item.Name</h3>
+        <span class="fm-tag @BadgeClass">@FoodDisplay.BadgeLabel(_state)</span>
+    </div>
+    <div class="food-card-body">
+        <span>@FoodDisplay.OwnerLabel(Item.Owner) · @Item.Category</span>
+        <span class="fig @(Expired ? "is-expired" : null)">
+            @(Expired ? "Expired" : "Expires") @FoodDisplay.DateLabel(Item.ExpirationDate) · @FoodDisplay.SizeLabel(Item.SizeUnits)
+        </span>
+    </div>
+    <div class="food-card-meta">
+        <span>@Item.Shelf.Name</span>
+        @if (Item.IsShared)
+        {
+            <span class="fm-tag fm-tag-outline">Shared</span>
+        }
+    </div>
+</div>
+
+@code {
+    [Parameter, EditorRequired]
+    public FoodItem Item { get; set; } = default!;
+
+    [Parameter]
+    public DateOnly Today { get; set; }
+
+    private ExpiryState _state;
+
+    private bool Expired => _state == ExpiryState.Expired;
+
+    private string BadgeClass => _state switch
+    {
+        ExpiryState.ExpiringSoon => "fm-tag-accent",
+        ExpiryState.Expired => "fm-tag-danger",
+        _ => "fm-tag-neutral"
+    };
+
+    protected override void OnParametersSet()
+    {
+        _state = ExpiryRules.Of(Item.ExpirationDate, Today);
+    }
+}

@@ -1,7 +1,103 @@
 ﻿@page "/"
+@attribute [Authorize]
 
-<PageTitle>Home</PageTitle>
+<PageTitle>Dashboard</PageTitle>
 
-<h1>Hello, world!</h1>
+@if (_overview is null)
+{
+    <p class="text-muted">Reading the fridge…</p>
+}
+else
+{
+    <div class="page-header page-header-rule">
+        <div>
+            <div class="eyebrow">@_overview.RefrigeratorName · one refrigerator</div>
+            <h1 class="page-title page-title-xl">The state of the fridge</h1>
+        </div>
+        <div class="text-muted fig page-date">@_today.ToString("dddd, d MMMM yyyy", System.Globalization.CultureInfo.GetCultureInfo("en-GB"))</div>
+    </div>
 
-Welcome to your new app.
+    <div class="stat-row">
+        <div class="stat-cell">
+            <div class="stat-value fig">@_overview.ActiveCount</div>
+            <div class="stat-label">Active items</div>
+        </div>
+        <div class="stat-cell">
+            <div class="stat-value stat-value-warn fig">@_overview.ExpiringSoonCount</div>
+            <div class="stat-label">Expiring soon</div>
+        </div>
+        <div class="stat-cell">
+            <div class="stat-value stat-value-danger fig">@_overview.ExpiredCount</div>
+            <div class="stat-label">Expired</div>
+        </div>
+        <div class="stat-cell">
+            <div class="stat-value fig">@_overview.SharedCount</div>
+            <div class="stat-label">Shared items</div>
+        </div>
+    </div>
+
+    <div class="utilisation">
+        <div class="utilisation-head">
+            <h4>Overall utilisation</h4>
+            <div class="fig" style="font-family:var(--font-heading);font-size:18px">
+                @_overview.UsedUnits <span class="text-muted" style="font-size:14px">/ @_overview.TotalCapacity units · @_overview.UtilisationPercent%</span>
+            </div>
+        </div>
+        <div class="bar">
+            <div class="bar-fill" style="width:@_overview.UtilisationPercent%"></div>
+        </div>
+    </div>
+
+    <div class="dash-split">
+        <div>
+            <div class="utilisation-head" style="margin-bottom:14px">
+                <h4>Where things sit</h4>
+                <span class="text-muted fig" style="font-size:11px">@_overview.UsedUnits of @_overview.TotalCapacity units · chip width ∝ size</span>
+            </div>
+            <FridgeElevation Shelves="_overview.Shelves" />
+        </div>
+        <div class="dash-split-rule"></div>
+        <div>
+            <h4 style="margin:0 0 14px">Per-user usage</h4>
+            <table class="fm-table">
+                <thead>
+                    <tr>
+                        <th>Member</th>
+                        <th style="text-align:right">Used / quota</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach (var member in _overview.Members)
+                    {
+                        <tr @key="member.Name">
+                            <td>@member.Name</td>
+                            <td class="num">
+                                <span class="fig">@member.Used / @member.Quota</span>
+                                @if (member.AtLimit)
+                                {
+                                    <span class="fm-tag fm-tag-danger" style="margin-left:6px">At limit</span>
+                                }
+                            </td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+            <p class="muted-note">Quota counts active items only; consumed, missing and discarded items free their unit and their slot immediately.</p>
+            <a class="fm-btn fm-btn-primary dash-cta" href="food">View food items</a>
+        </div>
+    </div>
+}
+
+@code {
+    [Inject]
+    private IInventoryService Inventory { get; set; } = default!;
+
+    private FridgeOverview? _overview;
+    private readonly DateOnly _today = DateOnly.FromDateTime(DateTime.UtcNow);
+
+    protected override async Task OnInitializedAsync()
+    {
+        var items = await Inventory.GetItemsAsync(new FoodFilter { Status = null });
+        _overview = FridgeOverview.From(items, _today);
+    }
+}
