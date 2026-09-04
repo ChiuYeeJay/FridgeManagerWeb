@@ -39,9 +39,9 @@ Expected rule violations never throw. They return `OperationResult` / `Operation
 |---|---|
 | `Components/Pages` | Dashboard (`Home.razor`), `FoodList`, `FoodDetail`, `FoodForm` |
 | `Components/Shared` | `FoodCard`, `FoodFilterBar`, `FridgeElevation` |
-| `Components/Account` | Template Identity pages; static SSR; do not modify |
-| `Services` | `InventoryService`, `CapacityService`, `ExpiryRules`, `FoodDisplay`, `UserClaims` |
-| `Services/Models` | Forms, filters, DTOs, `OperationResult` |
+| `Components/Account` | Template Identity pages; static SSR. Markup/styles may change; `[ExcludeFromInteractiveRouting]`, form POST logic, and Identity services must not. |
+| `Services` | `InventoryService`, `CapacityService`, `ExpiryRules`, `FoodDisplay`, `UserClaims`, `FoodListState`, `FoodSortPreference` |
+| `Services/Models` | Forms, filters, `FoodSort`, DTOs, `OperationResult` |
 | `Data` | `AppDbContext`, entities, enums, seeder, migrations |
 | `wwwroot/css/theme.css` | Mockup tokens and `fm-*` primitives |
 | `tests/FridgeManager.Tests` | xUnit + EF Core SQLite `:memory:` |
@@ -73,12 +73,13 @@ All predicates are applied on `IQueryable` before `ToListAsync()`. Date threshol
 | Filter | Translation |
 |---|---|
 | Search | `Name.ToLower().Contains(term)` after trim (not `ILike`) |
-| Mine | `OwnerId == FoodFilter.CurrentUserId` (page fills this from auth state) |
+| Mine | `OwnerId == FoodFilter.CurrentUserId` (All / My items tab on `/food`; page fills this from auth state) |
 | Shared | `IsShared` |
 | Category / Shelf / Status | equality; Status defaults to `Active` |
-| Expiring soon only | `today <= ExpirationDate <= today+3` |
-| Expired only | `ExpirationDate < today` |
-| Both expiry toggles | `ExpirationDate <= today+3` |
+| Expiry | `Expired` → `< today`; `ExpiringSoon` → `today..today+3`; `Normal` → `> today+3`; omit for any |
+| Sort | `Expiry` (default, soonest first), `Created`/`Updated` (newest first), `Name`, `Owner` (`UserName` then `Name`), `Category` then `Name`. `dir=asc`/`dir=desc` only when it differs from that field’s default |
+
+Filter state lives in the `/food?...` query string (`FoodFilter.ToQuery` / `FromQuery`). Changing a control `NavigateTo`s with `replace: true`. Dashboard stat cells and shelf headers deep-link into the same query. `FoodListState` (scoped) remembers the last list URL so detail/form Back returns to the filtered list. Sort field and direction are also written to `localStorage` (`FoodSortPreference`); visiting `/food` without `sort`/`dir` reapplies that browser preference. Clear filters leaves the All/My items tab and sort untouched.
 
 ## DTOs
 
@@ -89,7 +90,11 @@ All predicates are applied on `IQueryable` before `ToListAsync()`. Date threshol
 
 ## UI conventions
 
-The mockup's Classical tokens live in `theme.css` (`--color-*`, Newsreader / Public Sans). Pages use `fm-*` classes rather than Bootstrap, which remains loaded for `Account/**`.
+The mockup's Classical tokens live in `theme.css` (`--color-*`, self-hosted Newsreader / Public Sans). Pages use `fm-*` classes rather than Bootstrap. Account pages now share the same `fm-*` primitives; Bootstrap remains loaded for residual template widgets.
+
+`html { scrollbar-gutter: stable; }` keeps the layout from shifting when a vertical scrollbar appears. Dashboard and Food list reserve height with skeletons / `.food-results { min-height: 60vh }` so loading and empty states do not collapse the page.
+
+Owner is shown as a chip on the card plate (`You` when the viewer owns the item), as a tag plus table row on detail, and as the subtitle on dashboard shelf chips. Item names truncate to one line with an ellipsis on cards and fridge chips; the detail page wraps long names.
 
 | Mockup | App |
 |---|---|
@@ -110,6 +115,7 @@ Photo upload is a disabled placeholder on `FoodForm`. `SaveImageAsync` is Phase 
 - Photo upload is deferred; the form shows the category plate.
 - Item-count line on the list is `{matched} of {active} active items` (or `{n} items` when Status is not Active).
 - `SetQuota` below current usage is Phase 3 (`IUserAdminService`).
+- Account Identity markup uses `fm-*` styles; render mode and POST handlers are unchanged.
 
 ## Still to come
 

@@ -3,6 +3,7 @@ using FridgeManager.Services;
 using FridgeManager.Services.Models;
 using Microsoft.AspNetCore.Components;
 using Microsoft.AspNetCore.Components.Authorization;
+using Microsoft.AspNetCore.Components.Forms;
 using System.Security.Claims;
 
 namespace FridgeManager.Components.Pages;
@@ -21,10 +22,14 @@ public partial class FoodForm
     [Inject]
     private NavigationManager Navigation { get; set; } = default!;
 
+    [Inject]
+    private FoodListState ListState { get; set; } = default!;
+
     [CascadingParameter]
     private Task<AuthenticationState> AuthState { get; set; } = default!;
 
     private readonly FoodItemForm Form = new();
+    private EditForm? _editForm;
     private IReadOnlyList<ShelfUsageDto> _shelves = [];
     private UserUsageDto? _allowance;
     private ClaimsPrincipal _user = new();
@@ -38,7 +43,7 @@ public partial class FoodForm
 
     private bool IsEdit => Id > 0;
 
-    private string CancelHref => IsEdit ? $"food/{Id}" : "food";
+    private string CancelHref => IsEdit ? $"food/{Id}" : ListState.LastListUrl;
 
     private ShelfUsageDto? SelectedShelf
         => _shelves.FirstOrDefault(s => s.ShelfId == Form.ShelfId);
@@ -155,6 +160,35 @@ public partial class FoodForm
 
         return remaining;
     }
+
+    private int NameLength => Form.Name?.Length ?? 0;
+
+    private DateOnly TodayUtc => DateOnly.FromDateTime(DateTime.UtcNow);
+
+    private bool IsExpiryDays(int days) => Form.ExpirationDate == TodayUtc.AddDays(days);
+
+    private bool IsExpiryMonths(int months) => Form.ExpirationDate == TodayUtc.AddMonths(months);
+
+    private bool IsExpiryYears(int years) => Form.ExpirationDate == TodayUtc.AddYears(years);
+
+    private static string ExpiryPresetClass(bool selected)
+        => selected ? "fm-btn fm-btn-primary fm-btn-sm" : "fm-btn fm-btn-ghost fm-btn-sm";
+
+    private void OnNameInput(ChangeEventArgs e)
+    {
+        Form.Name = e.Value?.ToString() ?? "";
+        var context = _editForm?.EditContext;
+        context?.NotifyFieldChanged(new FieldIdentifier(Form, nameof(FoodItemForm.Name)));
+    }
+
+    private void SetExpiryDays(int days)
+        => Form.ExpirationDate = DateOnly.FromDateTime(DateTime.UtcNow).AddDays(days);
+
+    private void SetExpiryMonths(int months)
+        => Form.ExpirationDate = DateOnly.FromDateTime(DateTime.UtcNow).AddMonths(months);
+
+    private void SetExpiryYears(int years)
+        => Form.ExpirationDate = DateOnly.FromDateTime(DateTime.UtcNow).AddYears(years);
 
     private async Task SaveAsync()
     {

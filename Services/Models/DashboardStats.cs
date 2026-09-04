@@ -27,13 +27,20 @@ public sealed class DashboardStats
             var used = onShelf.Sum(i => i.SizeUnits);
             var chips = onShelf
                 .OrderBy(i => i.ExpirationDate)
-                .Select(i => new ShelfChip(
-                    i.Name,
-                    ChipSubtitle(i, today),
-                    i.SizeUnits,
-                    ExpiryRules.Of(i.ExpirationDate, today) == ExpiryState.Expired))
+                .Select(i =>
+                {
+                    var state = ExpiryRules.Of(i.ExpirationDate, today);
+                    return new ShelfChip(
+                        i.Id,
+                        i.Name,
+                        FoodDisplay.OwnerLabel(i.Owner),
+                        i.SizeUnits,
+                        state == ExpiryState.Expired,
+                        state == ExpiryState.ExpiringSoon,
+                        FoodDisplay.DateLabel(i.ExpirationDate));
+                })
                 .ToList();
-            return new ShelfBand(shelf.Name, used, shelf.CapacityUnits, chips);
+            return new ShelfBand(shelf.Id, shelf.Name, used, shelf.CapacityUnits, chips);
         }).ToList();
 
         var usageByOwner = shelves
@@ -46,6 +53,7 @@ public sealed class DashboardStats
             {
                 var used = usageByOwner.GetValueOrDefault(user.Id);
                 return new MemberUsage(
+                    user.Id,
                     FoodDisplay.OwnerLabel(user),
                     used,
                     user.ItemQuota,
@@ -73,29 +81,20 @@ public sealed class DashboardStats
             Members = members
         };
     }
-
-    private static string ChipSubtitle(FoodItem item, DateOnly today)
-    {
-        var state = ExpiryRules.Of(item.ExpirationDate, today);
-        if (state == ExpiryState.Expired)
-        {
-            return $"expired {FoodDisplay.DateLabel(item.ExpirationDate)}";
-        }
-
-        if (state == ExpiryState.ExpiringSoon)
-        {
-            return FoodDisplay.DateLabel(item.ExpirationDate);
-        }
-
-        return FoodDisplay.OwnerLabel(item.Owner);
-    }
 }
 
-public sealed record ShelfBand(string Name, int Used, int Capacity, IReadOnlyList<ShelfChip> Chips)
+public sealed record ShelfBand(int ShelfId, string Name, int Used, int Capacity, IReadOnlyList<ShelfChip> Chips)
 {
     public int Remaining => Math.Max(0, Capacity - Used);
 }
 
-public sealed record ShelfChip(string Name, string Subtitle, int SizeUnits, bool Expired);
+public sealed record ShelfChip(
+    int Id,
+    string Name,
+    string Owner,
+    int SizeUnits,
+    bool Expired,
+    bool ExpiringSoon,
+    string ExpirationLabel);
 
-public sealed record MemberUsage(string Name, int Used, int Quota, bool AtLimit);
+public sealed record MemberUsage(string UserId, string Name, int Used, int Quota, bool AtLimit);

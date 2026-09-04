@@ -17,7 +17,7 @@
 
 @if (currentPasskeys is { Count: > 0 })
 {
-    <table class="table">
+    <table class="fm-table">
         <tbody>
             @foreach (var passkey in currentPasskeys)
             {
@@ -29,10 +29,10 @@
                         }
                         <form @formname="@($"update-passkey-{credentialId}")" @onsubmit="UpdatePasskey" method="post">
                             <AntiforgeryToken />
-                            <div>
+                            <div class="fm-stack" style="flex-direction:row;flex-wrap:wrap">
                                 <input type="hidden" name="CredentialId" value="@credentialId" />
-                                <button type="submit" name="Action" value="rename" class="btn btn-primary" title="Rename this passkey">Rename</button>
-                                <button type="submit" name="Action" value="delete" class="btn btn-danger" title="Remove this passkey from your account">Delete</button>
+                                <button type="submit" name="Action" value="rename" class="fm-btn fm-btn-secondary" title="Rename this passkey">Rename</button>
+                                <button type="submit" name="Action" value="delete" class="fm-btn fm-btn-danger" title="Remove this passkey from your account">Delete</button>
                             </div>
                         </form>
                     </td>
@@ -43,18 +43,18 @@
 }
 else
 {
-    <p>No passkeys are registered.</p>
+    <p class="fm-help">No passkeys are registered.</p>
 }
 
 <form @formname="add-passkey" @onsubmit="AddPasskey" method="post">
     <AntiforgeryToken />
     @if (currentPasskeys is { Count: >= MaxPasskeyCount })
     {
-        <p class="text-danger">You have reached the maximum number of allowed passkeys. Please delete one before adding a new one.</p>
+        <p class="validation-message">You have reached the maximum number of allowed passkeys. Please delete one before adding a new one.</p>
     }
     else
     {
-        <PasskeySubmit Operation="PasskeyOperation.Create" Name="Input" class="btn btn-primary">Add a new passkey</PasskeySubmit>
+        <PasskeySubmit Operation="PasskeyOperation.Create" Name="Input" class="fm-btn fm-btn-primary">Add a new passkey</PasskeySubmit>
     }
 
 </form>

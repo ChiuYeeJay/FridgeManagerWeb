@@ -56,6 +56,15 @@ public static class FoodDisplay
         return at > 0 ? name[..at] : name;
     }
 
+    public static string OwnerInitial(ApplicationUser owner)
+    {
+        var label = OwnerLabel(owner);
+        return string.IsNullOrEmpty(label) ? "?" : char.ToUpperInvariant(label[0]).ToString();
+    }
+
+    public static bool IsOwn(FoodItem item, string? currentUserId)
+        => !string.IsNullOrEmpty(currentUserId) && item.OwnerId == currentUserId;
+
     public static string DateLabel(DateOnly date) => date.ToString("d MMM yyyy", English);
 
     public static string BadgeLabel(Data.Enums.ExpiryState state) => state switch

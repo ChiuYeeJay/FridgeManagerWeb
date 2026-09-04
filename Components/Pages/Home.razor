@@ -3,37 +3,57 @@
 
 <PageTitle>Dashboard</PageTitle>
 
+<div class="page-header page-header-rule">
+    <div>
+        <div class="eyebrow">@(_stats?.RefrigeratorName ?? "Refrigerator") · one refrigerator</div>
+        <h1 class="page-title page-title-xl">The state of the fridge</h1>
+    </div>
+    <div class="text-muted fig page-date">@_today.ToString("dddd, d MMMM yyyy", System.Globalization.CultureInfo.GetCultureInfo("en-GB"))</div>
+</div>
+
 @if (_stats is null)
 {
-    <p class="text-muted">Reading the fridge…</p>
+    <div class="stat-row">
+        @for (var i = 0; i < 5; i++)
+        {
+            <div class="stat-cell">
+                <div class="skeleton skeleton-value"></div>
+                <div class="skeleton skeleton-label"></div>
+            </div>
+        }
+    </div>
+    <div class="utilisation">
+        <div class="skeleton skeleton-bar"></div>
+    </div>
+    <div class="dash-split">
+        <div class="skeleton" style="height:280px"></div>
+        <div class="dash-split-rule"></div>
+        <div class="skeleton" style="height:280px"></div>
+    </div>
 }
 else
 {
-    <div class="page-header page-header-rule">
-        <div>
-            <div class="eyebrow">@_stats.RefrigeratorName · one refrigerator</div>
-            <h1 class="page-title page-title-xl">The state of the fridge</h1>
-        </div>
-        <div class="text-muted fig page-date">@_today.ToString("dddd, d MMMM yyyy", System.Globalization.CultureInfo.GetCultureInfo("en-GB"))</div>
-    </div>
-
     <div class="stat-row">
-        <div class="stat-cell">
+        <a class="stat-cell" href="food">
             <div class="stat-value fig">@_stats.ActiveCount</div>
             <div class="stat-label">Active items</div>
-        </div>
-        <div class="stat-cell">
-            <div class="stat-value stat-value-warn fig">@_stats.ExpiringSoonCount</div>
-            <div class="stat-label">Expiring soon</div>
-        </div>
-        <div class="stat-cell">
-            <div class="stat-value stat-value-danger fig">@_stats.ExpiredCount</div>
-            <div class="stat-label">Expired</div>
-        </div>
-        <div class="stat-cell">
+        </a>
+        <a class="stat-cell" href="food?mine=1">
+            <div class="stat-value fig">@_myItems</div>
+            <div class="stat-label">My items</div>
+        </a>
+        <a class="stat-cell" href="food?shared=1">
             <div class="stat-value fig">@_stats.SharedCount</div>
             <div class="stat-label">Shared items</div>
-        </div>
+        </a>
+        <a class="stat-cell" href="food?expiry=ExpiringSoon">
+            <div class="stat-value fig">@_stats.ExpiringSoonCount</div>
+            <div class="stat-label">Expiring soon</div>
+        </a>
+        <a class="stat-cell" href="food?expiry=Expired">
+            <div class="stat-value stat-value-danger fig">@_stats.ExpiredCount</div>
+            <div class="stat-label">Expired</div>
+        </a>
     </div>
 
     <div class="utilisation">
@@ -58,6 +78,7 @@ else
         </div>
         <div class="dash-split-rule"></div>
         <div>
+            <a class="fm-btn fm-btn-primary dash-cta" href="food/new">Add an item</a>
             <h4 style="margin:0 0 14px">Per-user usage</h4>
             <table class="fm-table">
                 <thead>
@@ -69,7 +90,7 @@ else
                 <tbody>
                     @foreach (var member in _stats.Members)
                     {
-                        <tr @key="member.Name">
+                        <tr @key="member.UserId">
                             <td>@member.Name</td>
                             <td class="num">
                                 <span class="fig">@member.Used / @member.Quota</span>
@@ -83,7 +104,6 @@ else
                 </tbody>
             </table>
             <p class="muted-note">Quota counts active items only; consumed, missing and discarded items free their unit and their slot immediately.</p>
-            <a class="fm-btn fm-btn-primary dash-cta" href="food/new">Add an item</a>
         </div>
     </div>
 }
@@ -92,11 +112,18 @@ else
     [Inject]
     private ICapacityService Capacity { get; set; } = default!;
 
+    [CascadingParameter]
+    private Task<AuthenticationState> AuthState { get; set; } = default!;
+
     private DashboardStats? _stats;
     private readonly DateOnly _today = DateOnly.FromDateTime(DateTime.UtcNow);
+    private int _myItems;
 
     protected override async Task OnInitializedAsync()
     {
+        var user = (await AuthState).User;
+        var userId = UserClaims.GetUserId(user);
         _stats = await Capacity.GetDashboardStatsAsync();
+        _myItems = _stats.Members.FirstOrDefault(m => m.UserId == userId)?.Used ?? 0;
     }
 }

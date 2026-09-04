@@ -5,7 +5,7 @@
 
 @if (_notFound)
 {
-    <a class="fm-btn fm-btn-ghost" href="food">← Back to food list</a>
+    <a class="fm-btn fm-btn-ghost" href="@ListHref">← Back to food list</a>
     <p class="text-muted" style="margin-top:16px">That item is not in the fridge.</p>
 }
 else if (_item is null)
@@ -14,7 +14,7 @@ else if (_item is null)
 }
 else
 {
-    <a class="fm-btn fm-btn-ghost" href="food">← Back to food list</a>
+    <a class="fm-btn fm-btn-ghost" href="@ListHref">← Back to food list</a>
     @if (_error is not null)
     {
         <div class="fm-alert-danger" style="margin-top:18px">
@@ -36,19 +36,21 @@ else
         <div>
             <div class="detail-tags">
                 <span class="fm-tag @BadgeClass">@FoodDisplay.BadgeLabel(_state)</span>
+                <span class="fm-tag @(_own ? "fm-tag-accent" : "fm-tag-neutral")">@(_own ? "Yours" : $"Owner · {FoodDisplay.OwnerLabel(_item.Owner)}")</span>
                 @if (_item.IsShared)
                 {
                     <span class="fm-tag fm-tag-outline">Shared</span>
                 }
                 <span class="fm-tag fm-tag-neutral">@_item.Status</span>
             </div>
-            <h1 class="page-title">@_item.Name</h1>
+            <h1 class="page-title detail-title">@_item.Name</h1>
             <div class="text-muted" style="font-size:13px;margin-bottom:20px">
-                Owned by @FoodDisplay.OwnerLabel(_item.Owner) · added @FoodDisplay.DateLabel(DateOnly.FromDateTime(_item.CreatedAt))
+                Added @FoodDisplay.DateLabel(DateOnly.FromDateTime(_item.CreatedAt))
             </div>
             <table class="fm-table" style="margin-bottom:22px">
                 <tbody>
-                    <tr><th style="width:170px">Category</th><td>@_item.Category</td></tr>
+                    <tr><th style="width:170px">Owner</th><td>@FoodDisplay.OwnerLabel(_item.Owner)</td></tr>
+                    <tr><th>Category</th><td>@_item.Category</td></tr>
                     <tr><th>Expiration date</th><td class="fig">@FoodDisplay.ExpirationDetail(_item.ExpirationDate, _today)</td></tr>
                     <tr><th>Size</th><td>@FoodDisplay.SizeDetail(_item.SizeUnits)</td></tr>
                     <tr><th>Shared</th><td>@(_item.IsShared ? "Yes — anyone may take some" : "No")</td></tr>
@@ -90,6 +92,9 @@ else
     [Inject]
     private ICapacityService Capacity { get; set; } = default!;
 
+    [Inject]
+    private FoodListState ListState { get; set; } = default!;
+
     [CascadingParameter]
     private Task<AuthenticationState> AuthState { get; set; } = default!;
 
@@ -103,6 +108,9 @@ else
     private ExpiryState _state;
     private ClaimsPrincipal _user = new();
     private int _loadedId = int.MinValue;
+    private bool _own;
+
+    private string ListHref => ListState.LastListUrl;
 
     private string BadgeClass => _state switch
     {
@@ -135,6 +143,7 @@ else
 
         _state = ExpiryRules.Of(_item.ExpirationDate, _today);
         _canModify = UserClaims.CanModify(_user, _item);
+        _own = FoodDisplay.IsOwn(_item, UserClaims.GetUserId(_user));
         _shelfRemaining = await Capacity.GetShelfRemainingAsync(_item.ShelfId);
     }
 

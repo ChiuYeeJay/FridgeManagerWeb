@@ -8,17 +8,20 @@
             <div style="height:1px;background:var(--color-neutral-400)"></div>
         }
         <div>
-            <div class="fridge-shelf-head">
+            <a class="fridge-shelf-link" href="@($"food?shelf={shelf.ShelfId}")">
                 <span class="fridge-shelf-name">@shelf.Name</span>
                 <span class="fig text-muted" style="font-size:11px">@shelf.Used / @shelf.Capacity units · @shelf.Remaining free</span>
-            </div>
+            </a>
             <div class="fridge-row">
                 @foreach (var chip in shelf.Chips)
                 {
-                    <div class="fridge-chip @(chip.Expired ? "fridge-chip-expired" : null)" style="flex: @chip.SizeUnits">
-                        @chip.Name<br />
-                        <span class="@(chip.Expired ? null : "text-muted")" style="@(chip.Expired ? "opacity:.75" : null)">@chip.Subtitle</span>
-                    </div>
+                    <a class="fridge-chip @(chip.Expired ? "fridge-chip-expired" : chip.ExpiringSoon ? "fridge-chip-soon" : null)"
+                       href="@($"food/{chip.Id}")"
+                       style="flex: @chip.SizeUnits"
+                       title="@chip.Name · @chip.Owner · @chip.ExpirationLabel">
+                        <span class="fridge-chip-name">@chip.Name</span>
+                        <span class="fridge-chip-owner @(chip.Expired ? null : "text-muted")">@chip.Owner</span>
+                    </a>
                 }
                 @if (shelf.Remaining > 0)
                 {

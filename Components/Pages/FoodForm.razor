@@ -10,7 +10,7 @@
 }
 else if (_blocked is not null)
 {
-    <a class="fm-btn fm-btn-ghost" href="food">← Back to food list</a>
+    <a class="fm-btn fm-btn-ghost" href="@ListState.LastListUrl">← Back to food list</a>
     <p class="text-muted" style="margin-top:16px">@_blocked</p>
 }
 else
@@ -27,13 +27,15 @@ else
         </div>
     }
 
-    <EditForm Model="Form" OnValidSubmit="SaveAsync">
+    <EditForm @ref="_editForm" Model="Form" OnValidSubmit="SaveAsync">
         <DataAnnotationsValidator />
         <div class="form-grid">
             <div class="form-stack">
                 <div class="fm-field">
                     <label for="item-name">Name</label>
-                    <InputText id="item-name" class="fm-input" @bind-Value="Form.Name" />
+                    <input id="item-name" class="fm-input" type="text" maxlength="200"
+                           value="@Form.Name" @oninput="OnNameInput" />
+                    <div class="field-counter @(NameLength >= 200 ? "is-limit" : null)">@NameLength / 200</div>
                     <ValidationMessage For="() => Form.Name" />
                 </div>
                 <div class="form-two">
@@ -47,20 +49,32 @@ else
                         </InputSelect>
                     </div>
                     <div class="fm-field">
+                        <span class="fm-field-label">Size</span>
+                        <InputRadioGroup @bind-Value="Form.SizeUnits">
+                            <div class="fm-seg">
+                                <label class="fm-seg-opt"><InputRadio Value="@(1)" />Small · 1</label>
+                                <label class="fm-seg-opt"><InputRadio Value="@(2)" />Medium · 2</label>
+                                <label class="fm-seg-opt"><InputRadio Value="@(3)" />Large · 3</label>
+                            </div>
+                        </InputRadioGroup>
+                        <ValidationMessage For="() => Form.SizeUnits" />
+                    </div>
+                </div>
+                <div class="form-two">
+                    <div class="fm-field">
                         <label for="item-expiry">Expiration date</label>
                         <InputDate id="item-expiry" class="fm-input fig" @bind-Value="Form.ExpirationDate" />
                     </div>
-                </div>
-                <div class="fm-field">
-                    <span class="fm-field-label">Size</span>
-                    <InputRadioGroup @bind-Value="Form.SizeUnits">
-                        <div class="fm-seg">
-                            <label class="fm-seg-opt"><InputRadio Value="@(1)" />Small · 1</label>
-                            <label class="fm-seg-opt"><InputRadio Value="@(2)" />Medium · 2</label>
-                            <label class="fm-seg-opt"><InputRadio Value="@(3)" />Large · 3</label>
+                    <div class="fm-field">
+                        <span class="fm-field-label">&nbsp;</span>
+                        <div class="quick-dates">
+                            <button type="button" class="@ExpiryPresetClass(IsExpiryDays(1))" @onclick="() => SetExpiryDays(1)">Tomorrow</button>
+                            <button type="button" class="@ExpiryPresetClass(IsExpiryDays(3))" @onclick="() => SetExpiryDays(3)">+3 days</button>
+                            <button type="button" class="@ExpiryPresetClass(IsExpiryDays(7))" @onclick="() => SetExpiryDays(7)">+1 week</button>
+                            <button type="button" class="@ExpiryPresetClass(IsExpiryMonths(1))" @onclick="() => SetExpiryMonths(1)">+1 month</button>
+                            <button type="button" class="@ExpiryPresetClass(IsExpiryYears(1))" @onclick="() => SetExpiryYears(1)">+1 year</button>
                         </div>
-                    </InputRadioGroup>
-                    <ValidationMessage For="() => Form.SizeUnits" />
+                    </div>
                 </div>
                 <div class="fm-field">
                     <label for="item-shelf">Shelf</label>

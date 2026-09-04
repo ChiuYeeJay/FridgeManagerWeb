@@ -46,6 +46,8 @@ builder.Services.AddAuthorizationBuilder()
 builder.Services.AddSingleton<IEmailSender<ApplicationUser>, IdentityNoOpEmailSender>();
 builder.Services.AddScoped<IInventoryService, InventoryService>();
 builder.Services.AddScoped<ICapacityService, CapacityService>();
+builder.Services.AddScoped<FoodListState>();
+builder.Services.AddScoped<FoodSortPreference>();
 
 var app = builder.Build();
 

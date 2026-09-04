@@ -4,15 +4,19 @@
     <a class="food-card-link" href="@($"food/{Item.Id}")">
         <div class="food-card-plate">
             <img src="@FoodDisplay.ImageUrl(Item)" alt="" />
+            <span class="owner-chip @(_own ? "owner-chip-you" : null)">
+                <span class="owner-chip-initial">@FoodDisplay.OwnerInitial(Item.Owner)</span>
+                @(_own ? "You" : FoodDisplay.OwnerLabel(Item.Owner))
+            </span>
         </div>
         <div class="food-card-head">
-            <h3 class="food-card-title">@Item.Name</h3>
+            <h3 class="food-card-title" title="@Item.Name">@Item.Name</h3>
             <span class="fm-tag @BadgeClass">@FoodDisplay.BadgeLabel(_state)</span>
         </div>
         <div class="food-card-body">
-            <span>@FoodDisplay.OwnerLabel(Item.Owner) · @Item.Category</span>
+            <span>@Item.Category · @FoodDisplay.SizeLabel(Item.SizeUnits)</span>
             <span class="fig @(Expired ? "is-expired" : null)">
-                @(Expired ? "Expired" : "Expires") @FoodDisplay.DateLabel(Item.ExpirationDate) · @FoodDisplay.SizeLabel(Item.SizeUnits)
+                @(Expired ? "Expired" : "Expires") @FoodDisplay.DateLabel(Item.ExpirationDate)
             </span>
         </div>
     </a>
@@ -37,12 +41,16 @@
     public DateOnly Today { get; set; }
 
     [Parameter]
+    public string? CurrentUserId { get; set; }
+
+    [Parameter]
     public bool CanDiscard { get; set; }
 
     [Parameter]
     public EventCallback OnDiscard { get; set; }
 
     private ExpiryState _state;
+    private bool _own;
 
     private bool Expired => _state == ExpiryState.Expired;
 
@@ -56,5 +64,6 @@
     protected override void OnParametersSet()
     {
         _state = ExpiryRules.Of(Item.ExpirationDate, Today);
+        _own = FoodDisplay.IsOwn(Item, CurrentUserId);
     }
 }

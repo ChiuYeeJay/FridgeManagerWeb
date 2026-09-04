@@ -1,3 +1,4 @@
+using System.Linq.Expressions;
 using System.Security.Claims;
 using FridgeManager.Data;
 using FridgeManager.Data.Entities;
@@ -56,29 +57,21 @@ public class InventoryService(IDbContextFactory<AppDbContext> factory) : IInvent
             query = query.Where(f => f.Status == status);
         }
 
-        if (filter.ExpiringSoon || filter.Expired)
+        if (filter.Expiry is ExpiryState expiry)
         {
             var today = DateOnly.FromDateTime(DateTime.UtcNow);
             var soon = today.AddDays(3);
 
-            if (filter.ExpiringSoon && filter.Expired)
+            query = expiry switch
             {
-                query = query.Where(f => f.ExpirationDate <= soon);
-            }
-            else if (filter.ExpiringSoon)
-            {
-                query = query.Where(f => f.ExpirationDate >= today && f.ExpirationDate <= soon);
-            }
-            else
-            {
-                query = query.Where(f => f.ExpirationDate < today);
-            }
+                ExpiryState.Expired => query.Where(f => f.ExpirationDate < today),
+                ExpiryState.ExpiringSoon => query.Where(f => f.ExpirationDate >= today && f.ExpirationDate <= soon),
+                ExpiryState.Normal => query.Where(f => f.ExpirationDate > soon),
+                _ => query
+            };
         }
 
-        return await query
-            .OrderBy(f => f.ExpirationDate)
-            .ThenBy(f => f.Name)
-            .ToListAsync();
+        return await ApplySort(query, filter).ToListAsync();
     }
 
     public async Task<FoodItem?> GetItemAsync(int id)
@@ -233,11 +226,39 @@ public class InventoryService(IDbContextFactory<AppDbContext> factory) : IInvent
         return OperationResult.Ok();
     }
 
+    private static IQueryable<FoodItem> ApplySort(IQueryable<FoodItem> query, FoodFilter filter)
+    {
+        var descending = filter.EffectiveDescending;
+        return filter.Sort switch
+        {
+            FoodSort.Created => ThenName(Order(query, f => f.CreatedAt, descending)),
+            FoodSort.Updated => ThenName(Order(query, f => f.UpdatedAt, descending)),
+            FoodSort.Name => Order(query, f => f.Name, descending),
+            FoodSort.Category => ThenName(Order(query, f => f.Category, descending)),
+            FoodSort.Owner => ThenName(Order(query, f => f.Owner.UserName, descending)),
+            _ => ThenName(Order(query, f => f.ExpirationDate, descending))
+        };
+    }
+
+    private static IOrderedQueryable<FoodItem> Order<TKey>(
+        IQueryable<FoodItem> query,
+        Expression<Func<FoodItem, TKey>> key,
+        bool descending)
+        => descending ? query.OrderByDescending(key) : query.OrderBy(key);
+
+    private static IOrderedQueryable<FoodItem> ThenName(IOrderedQueryable<FoodItem> query)
+        => query.ThenBy(f => f.Name);
+
     private static string? ValidateForm(FoodItemForm form)
     {
         if (string.IsNullOrWhiteSpace(form.Name))
         {
             return "Name is required.";
+        }
+
+        if (form.Name.Trim().Length > 200)
+        {
+            return "Name must be 200 characters or fewer.";
         }
 
         if (form.SizeUnits is < 1 or > 3)

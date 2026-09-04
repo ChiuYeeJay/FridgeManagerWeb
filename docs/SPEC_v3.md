@@ -165,10 +165,12 @@ Rules:
 /Components
   App.razor
   Routes.razor
-  /Account            (template, static SSR — do not modify)
+  /Account            (template Identity; static SSR. Markup and styles may change.
+                       Do not remove [ExcludeFromInteractiveRouting], do not add
+                       @rendermode, and do not move authentication logic out.)
   /Layout
   /Pages
-    Dashboard.razor
+    Dashboard.razor   (implemented as Home.razor)
     FoodList.razor
     FoodDetail.razor
     FoodForm.razor
@@ -445,14 +447,15 @@ Expiry badge colours: Normal = neutral, ExpiringSoon = warning, Expired = danger
 
 Filter bar, all bound with `@bind` and applied server-side:
 
+- All / My items (tab under the page title)
 - Search by name (text; debounce 300 ms)
-- My items (toggle)
 - Shared items (toggle)
 - Category (select)
 - Shelf (select)
 - Status (select, defaults to `Active`)
-- Expiring soon (toggle)
-- Expired (toggle)
+- Expiry state (select: any / Normal / Expiring soon / Expired)
+- Clear filters (resets the bar; keeps the All / My items tab and sort)
+- Sort (icon + direction toggle next to the item count; field and direction remembered in the browser)
 
 Filters apply immediately on change; no submit button.
 

@@ -1,3 +1,27 @@
+@font-face {
+    font-family: "Newsreader";
+    font-style: normal;
+    font-weight: 400 600;
+    font-display: optional;
+    src: url("/fonts/newsreader-latin.woff2") format("woff2");
+}
+
+@font-face {
+    font-family: "Public Sans";
+    font-style: normal;
+    font-weight: 400 600;
+    font-display: optional;
+    src: url("/fonts/public-sans-latin.woff2") format("woff2");
+}
+
+@font-face {
+    font-family: "Public Sans";
+    font-style: italic;
+    font-weight: 400;
+    font-display: optional;
+    src: url("/fonts/public-sans-latin-italic.woff2") format("woff2");
+}
+
 :root {
     --font-heading: "Newsreader", "Iowan Old Style", Georgia, serif;
     --font-body: "Public Sans", "Helvetica Neue", Helvetica, Arial, sans-serif;
@@ -19,6 +43,10 @@
     --radius-md: 6px;
     --radius-lg: 8px;
     --app-max: 1180px;
+}
+
+html {
+    scrollbar-gutter: stable;
 }
 
 html, body {
@@ -202,7 +230,7 @@ a {
 
 .food-grid {
     display: grid;
-    grid-template-columns: repeat(3, 1fr);
+    grid-template-columns: repeat(3, minmax(0, 1fr));
     gap: 22px;
 }
 
@@ -215,6 +243,7 @@ a {
     display: flex;
     flex-direction: column;
     gap: 10px;
+    position: relative;
 }
 
 .food-card-expired {
@@ -225,6 +254,7 @@ a {
     height: 132px;
     background: var(--color-neutral-200);
     overflow: hidden;
+    position: relative;
 }
 
 .food-card-plate img {
@@ -246,11 +276,20 @@ a {
     gap: 8px;
 }
 
+.food-card-head .fm-tag {
+    flex-shrink: 0;
+}
+
 .food-card-title {
     font-family: var(--font-heading);
     font-size: 20px;
     line-height: 1.2;
     margin: 0;
+    min-width: 0;
+    flex: 1;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
 }
 
 .food-card-body .is-expired {
@@ -273,7 +312,7 @@ a {
 
 .stat-row {
     display: grid;
-    grid-template-columns: repeat(4, 1fr);
+    grid-template-columns: repeat(5, 1fr);
     margin: 0 0 30px;
 }
 
@@ -294,10 +333,6 @@ a {
     font-size: 52px;
     line-height: 1;
     font-weight: 400;
-}
-
-.stat-value-warn {
-    color: var(--color-accent-700);
 }
 
 .stat-value-danger {
@@ -347,8 +382,12 @@ a {
 
 .dash-split {
     display: grid;
-    grid-template-columns: 1.25fr 1px 1fr;
+    grid-template-columns: minmax(0, 1.25fr) 1px minmax(0, 1fr);
     gap: 32px;
+}
+
+.dash-split > * {
+    min-width: 0;
 }
 
 .dash-split-rule {
@@ -389,6 +428,7 @@ a {
     display: flex;
     flex-direction: column;
     gap: 11px;
+    min-width: 0;
 }
 
 .fridge-shelf-head {
@@ -407,18 +447,33 @@ a {
     display: flex;
     gap: 4px;
     height: 52px;
+    min-width: 0;
 }
 
 .fridge-chip {
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
     border: 1px solid var(--color-accent-500);
     border-radius: 2px;
     padding: 4px 6px;
     font-size: 10px;
     line-height: 1.3;
     overflow: hidden;
-    white-space: nowrap;
-    text-overflow: ellipsis;
     min-width: 0;
+}
+
+.fridge-chip-name,
+.fridge-chip-owner {
+    display: block;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    min-width: 0;
+}
+
+.fridge-chip-expired .fridge-chip-owner {
+    opacity: 0.75;
 }
 
 .fridge-chip-expired {
@@ -469,7 +524,7 @@ a {
 }
 
 .dash-cta {
-    margin-top: 18px;
+    margin: 0 0 18px;
     width: 100%;
 }
 
@@ -532,12 +587,18 @@ a {
 .filter-category { width: 150px; }
 .filter-shelf { width: 150px; }
 .filter-status { width: 140px; }
+.filter-expiry { width: 140px; }
 
 .filter-toggles {
     display: flex;
     gap: 16px;
     padding-bottom: 8px;
     flex-wrap: wrap;
+}
+
+.filter-clear {
+    margin-left: auto;
+    margin-bottom: 8px;
 }
 
 .filter-hint {
@@ -760,8 +821,13 @@ textarea.fm-input {
     background: var(--color-danger-tint);
 }
 
+.login-panel {
+    max-width: 420px;
+}
+
 .login-panel h1 {
     font-size: 34px;
+    margin-bottom: 20px;
 }
 
 .btn-primary {
@@ -786,7 +852,8 @@ textarea.fm-input {
     .dash-split,
     .detail-grid,
     .form-grid,
-    .form-two {
+    .form-two,
+    .account-grid {
         grid-template-columns: 1fr;
     }
 
@@ -821,5 +888,328 @@ textarea.fm-input {
 
     .stat-value {
         font-size: 40px;
+    }
+}
+
+.skeleton {
+    background: var(--color-neutral-200);
+    border-radius: 4px;
+}
+
+.skeleton-value {
+    height: 52px;
+    width: 64px;
+}
+
+.skeleton-label {
+    height: 12px;
+    width: 88px;
+    margin-top: 8px;
+}
+
+.skeleton-bar {
+    height: 10px;
+    width: 100%;
+}
+
+.skeleton-line {
+    height: 14px;
+    margin: 0 14px;
+}
+
+.food-results {
+    min-height: 60vh;
+}
+
+.food-empty {
+    padding-top: 48px;
+}
+
+.food-card-skeleton {
+    min-height: 260px;
+}
+
+.owner-chip {
+    position: absolute;
+    left: 10px;
+    bottom: 10px;
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 3px 8px 3px 3px;
+    border-radius: 999px;
+    background: var(--color-text);
+    color: var(--color-bg);
+    font-size: 11px;
+    font-weight: 500;
+    letter-spacing: 0.02em;
+    line-height: 1.2;
+}
+
+.owner-chip-you {
+    background: var(--color-accent-700);
+}
+
+.owner-chip-initial {
+    width: 18px;
+    height: 18px;
+    border-radius: 50%;
+    background: var(--color-bg);
+    color: var(--color-text);
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 10px;
+    font-weight: 600;
+}
+
+.owner-chip-you .owner-chip-initial {
+    background: var(--color-accent-300);
+    color: var(--color-accent-700);
+}
+
+a.stat-cell,
+a.stat-link {
+    color: inherit;
+    text-decoration: none;
+    display: block;
+}
+
+a.stat-cell:hover .stat-label {
+    color: var(--color-accent-700);
+}
+
+a.stat-cell:hover .stat-value {
+    color: var(--color-accent-700);
+}
+
+a.stat-cell:hover .stat-value-danger {
+    color: var(--color-danger);
+}
+
+a.fridge-shelf-link {
+    color: inherit;
+    text-decoration: none;
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+    margin-bottom: 6px;
+}
+
+a.fridge-shelf-link:hover .fridge-shelf-name {
+    text-decoration: underline;
+}
+
+a.fridge-chip {
+    color: inherit;
+    text-decoration: none;
+}
+
+a.fridge-chip:hover .fridge-chip-name {
+    text-decoration: underline;
+}
+
+.fridge-chip-soon {
+    border-color: var(--color-accent-500);
+    color: var(--color-accent-700);
+}
+
+.quick-dates {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    min-height: 38px;
+    align-items: center;
+}
+
+.fm-btn-sm {
+    font-size: 12px;
+    padding: 4px 8px;
+}
+
+.fm-btn-icon {
+    padding: 4px;
+    min-width: 28px;
+    height: 28px;
+}
+
+.fm-btn-icon svg {
+    width: 16px;
+    height: 16px;
+    display: block;
+}
+
+.fm-tabs {
+    display: flex;
+    gap: 4px;
+    margin: -8px 0 0;
+}
+
+.fm-tab {
+    background: transparent;
+    border: none;
+    border-bottom: 2px solid transparent;
+    padding: 6px 12px 10px;
+    font: inherit;
+    font-size: 14px;
+    color: var(--color-neutral-600);
+    cursor: pointer;
+}
+
+.fm-tab.is-active {
+    color: var(--color-text);
+    border-bottom-color: var(--color-text);
+}
+
+.filter-sort-wrap {
+    position: relative;
+    display: flex;
+    gap: 2px;
+    align-items: center;
+}
+
+.filter-sort-trigger {
+    gap: 6px;
+    font-size: 12px;
+    padding: 4px 8px;
+}
+
+.filter-sort-trigger svg {
+    width: 14px;
+    height: 14px;
+    flex-shrink: 0;
+}
+
+.filter-hint-end {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+.sort-backdrop {
+    position: fixed;
+    inset: 0;
+    z-index: 10;
+}
+
+.sort-menu-list {
+    position: absolute;
+    right: 0;
+    top: calc(100% + 4px);
+    z-index: 11;
+    min-width: 200px;
+    background: var(--color-bg);
+    border: 1px solid var(--color-text);
+    border-radius: 4px;
+    padding: 4px 0;
+    display: flex;
+    flex-direction: column;
+}
+
+.sort-menu-item {
+    background: transparent;
+    border: none;
+    text-align: left;
+    font: inherit;
+    font-size: 13px;
+    padding: 8px 12px;
+    cursor: pointer;
+    color: var(--color-text);
+}
+
+.sort-menu-item:hover,
+.sort-menu-item.is-current {
+    background: color-mix(in srgb, var(--color-text) 8%, transparent);
+}
+
+.field-counter {
+    font-size: 11px;
+    color: var(--color-neutral-600);
+    text-align: right;
+}
+
+.field-counter.is-limit {
+    color: var(--color-danger);
+}
+
+.detail-title {
+    overflow-wrap: anywhere;
+}
+
+.account-grid {
+    display: grid;
+    grid-template-columns: 200px 1px 1fr;
+    gap: 32px;
+    margin-top: 20px;
+}
+
+.account-grid-rule {
+    background: var(--color-divider);
+}
+
+.account-nav {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+}
+
+.account-nav a {
+    color: var(--color-text);
+    text-decoration: none;
+    font-size: 14px;
+    width: fit-content;
+}
+
+.account-nav a.active {
+    box-shadow: inset 0 -1px 0 var(--color-text);
+}
+
+.account-panel {
+    max-width: 420px;
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+}
+
+.account-panel h3,
+.account-panel h4 {
+    margin: 0 0 4px;
+    font-size: 22px;
+}
+
+.fm-alert-success {
+    border: 1px solid var(--color-accent-500);
+    border-radius: var(--radius-md);
+    padding: 14px 16px;
+    margin-bottom: 24px;
+    background: color-mix(in srgb, var(--color-accent-400) 18%, transparent);
+}
+
+.fm-help {
+    font-size: 13px;
+    color: var(--color-neutral-600);
+    margin: 0 0 12px;
+}
+
+.fm-btn-danger {
+    background: var(--color-danger);
+    border-color: var(--color-danger);
+    color: var(--color-bg);
+}
+
+.fm-stack {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+}
+
+.recovery-code {
+    font-variant-numeric: tabular-nums;
+    font-size: 14px;
+}
+
+@media (max-width: 960px) {
+    .account-grid-rule {
+        display: none;
     }
 }

@@ -131,6 +131,162 @@ public sealed class InventoryServiceTests
         Assert.Equal(host.Seed.ShelfAId, stored.ShelfId);
     }
 
+    [Fact]
+    public async Task GetItemsAsync_DefaultSort_OrdersByExpirationThenName()
+    {
+        using var host = new ServiceHost();
+
+        var items = await host.Inventory.GetItemsAsync(new FoodFilter());
+
+        Assert.Equal(["Bread", "Juice", "Milk", "Baking soda"], items.Select(i => i.Name).ToArray());
+    }
+
+    [Fact]
+    public async Task GetItemsAsync_SortByName_OrdersAlphabetically()
+    {
+        using var host = new ServiceHost();
+
+        var items = await host.Inventory.GetItemsAsync(new FoodFilter { Sort = FoodSort.Name });
+
+        Assert.Equal(["Baking soda", "Bread", "Juice", "Milk"], items.Select(i => i.Name).ToArray());
+    }
+
+    [Fact]
+    public async Task GetItemsAsync_SortByCategory_OrdersCategoryThenName()
+    {
+        using var host = new ServiceHost();
+
+        var items = await host.Inventory.GetItemsAsync(new FoodFilter { Sort = FoodSort.Category });
+
+        Assert.Equal(["Juice", "Milk", "Baking soda", "Bread"], items.Select(i => i.Name).ToArray());
+    }
+
+    [Fact]
+    public async Task GetItemsAsync_SortByOwner_OrdersUserNameThenName()
+    {
+        using var host = new ServiceHost();
+
+        var items = await host.Inventory.GetItemsAsync(new FoodFilter { Sort = FoodSort.Owner });
+
+        Assert.Equal(["Baking soda", "Bread", "Juice", "Milk"], items.Select(i => i.Name).ToArray());
+    }
+
+    [Fact]
+    public async Task GetItemsAsync_SortByNameDescending_ReversesAlphabet()
+    {
+        using var host = new ServiceHost();
+
+        var items = await host.Inventory.GetItemsAsync(new FoodFilter
+        {
+            Sort = FoodSort.Name,
+            SortDescending = true
+        });
+
+        Assert.Equal(["Milk", "Juice", "Bread", "Baking soda"], items.Select(i => i.Name).ToArray());
+    }
+
+    [Fact]
+    public async Task GetItemsAsync_SortByCreated_OrdersNewestFirst()
+    {
+        using var host = new ServiceHost();
+        await using (var db = await host.Factory.CreateDbContextAsync())
+        {
+            var now = DateTime.UtcNow;
+            (await db.FoodItems.SingleAsync(f => f.Id == host.Seed.AlicesBreadId)).CreatedAt = now.AddHours(-4);
+            (await db.FoodItems.SingleAsync(f => f.Id == host.Seed.AlicesJuiceId)).CreatedAt = now.AddHours(-3);
+            (await db.FoodItems.SingleAsync(f => f.Id == host.Seed.BobsMilkId)).CreatedAt = now.AddHours(-1);
+            (await db.FoodItems.SingleAsync(f => f.Id == host.Seed.AdminsFillerId)).CreatedAt = now.AddHours(-2);
+            await db.SaveChangesAsync();
+        }
+
+        var items = await host.Inventory.GetItemsAsync(new FoodFilter { Sort = FoodSort.Created });
+
+        Assert.Equal(["Milk", "Baking soda", "Juice", "Bread"], items.Select(i => i.Name).ToArray());
+    }
+
+    [Fact]
+    public async Task GetItemsAsync_SortByUpdated_OrdersNewestFirst()
+    {
+        using var host = new ServiceHost();
+        await using (var db = await host.Factory.CreateDbContextAsync())
+        {
+            var now = DateTime.UtcNow;
+            (await db.FoodItems.SingleAsync(f => f.Id == host.Seed.AlicesBreadId)).UpdatedAt = now.AddHours(-1);
+            (await db.FoodItems.SingleAsync(f => f.Id == host.Seed.AlicesJuiceId)).UpdatedAt = now.AddHours(-4);
+            (await db.FoodItems.SingleAsync(f => f.Id == host.Seed.BobsMilkId)).UpdatedAt = now.AddHours(-2);
+            (await db.FoodItems.SingleAsync(f => f.Id == host.Seed.AdminsFillerId)).UpdatedAt = now.AddHours(-3);
+            await db.SaveChangesAsync();
+        }
+
+        var items = await host.Inventory.GetItemsAsync(new FoodFilter { Sort = FoodSort.Updated });
+
+        Assert.Equal(["Bread", "Milk", "Baking soda", "Juice"], items.Select(i => i.Name).ToArray());
+    }
+
+    [Fact]
+    public async Task GetItemsAsync_ExpiryExpired_ReturnsOnlyPastDates()
+    {
+        using var host = new ServiceHost();
+        var today = DateOnly.FromDateTime(DateTime.UtcNow);
+        await using (var db = await host.Factory.CreateDbContextAsync())
+        {
+            (await db.FoodItems.SingleAsync(f => f.Id == host.Seed.AlicesBreadId)).ExpirationDate = today.AddDays(-1);
+            (await db.FoodItems.SingleAsync(f => f.Id == host.Seed.AlicesJuiceId)).ExpirationDate = today.AddDays(2);
+            await db.SaveChangesAsync();
+        }
+
+        var items = await host.Inventory.GetItemsAsync(new FoodFilter { Expiry = ExpiryState.Expired });
+
+        Assert.Equal(["Bread"], items.Select(i => i.Name).ToArray());
+    }
+
+    [Fact]
+    public async Task GetItemsAsync_ExpiryExpiringSoon_ReturnsTodayThroughPlusThree()
+    {
+        using var host = new ServiceHost();
+        var today = DateOnly.FromDateTime(DateTime.UtcNow);
+        await using (var db = await host.Factory.CreateDbContextAsync())
+        {
+            (await db.FoodItems.SingleAsync(f => f.Id == host.Seed.AlicesBreadId)).ExpirationDate = today.AddDays(-1);
+            (await db.FoodItems.SingleAsync(f => f.Id == host.Seed.AlicesJuiceId)).ExpirationDate = today.AddDays(2);
+            await db.SaveChangesAsync();
+        }
+
+        var items = await host.Inventory.GetItemsAsync(new FoodFilter { Expiry = ExpiryState.ExpiringSoon });
+
+        Assert.Equal(["Juice"], items.Select(i => i.Name).ToArray());
+    }
+
+    [Fact]
+    public async Task GetItemsAsync_ExpiryNormal_ReturnsBeyondSoonWindow()
+    {
+        using var host = new ServiceHost();
+        var today = DateOnly.FromDateTime(DateTime.UtcNow);
+        await using (var db = await host.Factory.CreateDbContextAsync())
+        {
+            (await db.FoodItems.SingleAsync(f => f.Id == host.Seed.AlicesBreadId)).ExpirationDate = today.AddDays(-1);
+            (await db.FoodItems.SingleAsync(f => f.Id == host.Seed.AlicesJuiceId)).ExpirationDate = today.AddDays(2);
+            await db.SaveChangesAsync();
+        }
+
+        var items = await host.Inventory.GetItemsAsync(new FoodFilter { Expiry = ExpiryState.Normal });
+
+        Assert.Equal(["Milk", "Baking soda"], items.Select(i => i.Name).ToArray());
+    }
+
+    [Fact]
+    public async Task CreateItemAsync_WhenNameExceeds200Characters_Fails()
+    {
+        using var host = new ServiceHost();
+        var form = ValidForm(host.Seed.ShelfBId, size: 1, name: new string('a', 201));
+
+        var result = await host.Inventory.CreateItemAsync(form, Principals.For(host.Seed.BobId));
+
+        Assert.False(result.Success);
+        Assert.Contains("200", result.Error);
+        Assert.Null(result.Value);
+    }
+
     private static FoodItemForm ValidForm(int shelfId, int size, string name) => new()
     {
         Name = name,
