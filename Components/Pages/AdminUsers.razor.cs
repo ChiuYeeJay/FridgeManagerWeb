@@ -28,6 +28,7 @@ public partial class AdminUsers
     private int _editQuota;
     private bool _editInvalid;
     private bool _createOpen;
+    private bool _showCreatePassword;
     private bool _disabledOpen;
     private bool _busy;
     private Alert? _alert;
@@ -205,14 +206,18 @@ public partial class AdminUsers
     private void OpenCreate()
     {
         _alert = null;
+        _showCreatePassword = false;
         _createOpen = true;
     }
 
     private void CloseCreate()
     {
         _createOpen = false;
+        _showCreatePassword = false;
         Create.Reset();
     }
+
+    private void ToggleCreatePassword() => _showCreatePassword = !_showCreatePassword;
 
     private async Task CreateAsync()
     {

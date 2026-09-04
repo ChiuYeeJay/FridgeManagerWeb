@@ -54,7 +54,7 @@ Expected rule violations never throw. They return `OperationResult` / `Operation
 | Path | Role |
 |---|---|
 | `Components/Pages` | Dashboard (`Home.razor`), `FoodList`, `FoodDetail`, `FoodForm`, `AdminUsers` |
-| `Components/Shared` | `FoodCard`, `FoodFilterBar`, `FridgeElevation`, `ErrorFallback` |
+| `Components/Shared` | `FoodCard`, `FoodFilterBar`, `FridgeElevation`, `ErrorFallback`, `PasswordRevealButton` |
 | `Components/Account` | Template Identity pages; static SSR. Markup/styles may change; `[ExcludeFromInteractiveRouting]`, form POST handlers, and Identity services must not move out. |
 | `Services` | `InventoryService`, `CapacityService`, `UserAdminService`, `ExpiryRules`, `FoodDisplay`, `UserClaims`, `FoodListState`, `FoodSortPreference` |
 | `Services/Models` | Forms, filters, `FoodSort`, DTOs, `OperationResult` |
@@ -155,8 +155,9 @@ Owner is shown as a chip on the card plate (`You` when the viewer owns the item)
 - `UpdateMemberAsync` lets an admin change a member's username, email and quota in one save. Username and email must stay unique.
 - `GetUsersAsync` returns `AdminUserDto`, not `List<ApplicationUser>`.
 - Item-count line on the list is `{matched} of {active} active items` (or `{n} items` when Status is not Active).
-- Account Identity markup uses `fm-*` styles; render mode and POST handlers stay in place. Login looks up by email or username so admin-created members can sign in on the email field.
-- Template Register / external login pages remain; prefer `/admin/users` for this internal tool.
+- Account Identity markup uses `fm-*` styles; render mode and POST handlers stay in place. Login is email-only (`[EmailAddress]`). Username remains unique in Identity and is the display name; it is not a sign-in identifier.
+- Login does not offer Register, resend-confirmation, or external login; members are created by an admin. Those template pages remain reachable by URL.
+- Password fields on Login, Change password, and Add a member have a reveal toggle. Account pages are static SSR, so the toggle is `wwwroot/js/password-toggle.js`; AdminUsers uses component state.
 
 ## Known limitations (do not “fix”)
 

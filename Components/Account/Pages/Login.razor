@@ -8,7 +8,6 @@
 @inject UserManager<ApplicationUser> UserManager
 @inject SignInManager<ApplicationUser> SignInManager
 @inject ILogger<Login> Logger
-@inject NavigationManager NavigationManager
 @inject IdentityRedirectManager RedirectManager
 
 <PageTitle>Log in</PageTitle>
@@ -28,7 +27,10 @@
             </div>
             <div class="fm-field">
                 <label for="Input.Password">Password</label>
-                <InputText type="password" @bind-Value="Input.Password" id="Input.Password" class="fm-input" autocomplete="current-password" aria-required="true" placeholder="password" />
+                <div class="fm-password">
+                    <InputText type="password" @bind-Value="Input.Password" id="Input.Password" class="fm-input" autocomplete="current-password" aria-required="true" placeholder="password" />
+                    <PasswordRevealButton />
+                </div>
                 <ValidationMessage For="() => Input.Password" class="validation-message" />
             </div>
             <label class="fm-check">
@@ -40,18 +42,8 @@
             <p class="fm-help">
                 <a href="Account/ForgotPassword">Forgot your password?</a>
             </p>
-            <p class="fm-help">
-                <a href="@(NavigationManager.GetUriWithQueryParameters("Account/Register", new Dictionary<string, object?> { ["ReturnUrl"] = ReturnUrl }))">Register as a new user</a>
-            </p>
-            <p class="fm-help">
-                <a href="Account/ResendEmailConfirmation">Resend email confirmation</a>
-            </p>
         </div>
     </EditForm>
-    <div style="border-top:1px solid var(--color-divider);padding-top:18px;margin-top:8px">
-        <h4>Use another service</h4>
-        <ExternalLoginPicker />
-    </div>
 </div>
 
 @code {
@@ -102,8 +94,8 @@
                 return;
             }
 
-            var account = await UserManager.FindByEmailAsync(Input.Email)
-                ?? await UserManager.FindByNameAsync(Input.Email);
+            var email = Input.Email.Trim();
+            var account = await UserManager.FindByEmailAsync(email);
             if (account is { IsActive: false })
             {
                 errorMessage = "This account is disabled.";
@@ -112,15 +104,15 @@
 
             // This doesn't count login failures towards account lockout
             // To enable password failures to trigger account lockout, set lockoutOnFailure: true
-            var signInName = account?.UserName ?? Input.Email;
+            var signInName = account?.UserName ?? email;
             result = await SignInManager.PasswordSignInAsync(signInName, Input.Password, Input.RememberMe, lockoutOnFailure: false);
         }
 
         if (result.Succeeded)
         {
+            var email = Input.Email.Trim();
             var signedIn = await UserManager.GetUserAsync(HttpContext.User)
-                ?? await UserManager.FindByEmailAsync(Input.Email)
-                ?? await UserManager.FindByNameAsync(Input.Email);
+                ?? await UserManager.FindByEmailAsync(email);
             if (signedIn is { IsActive: false })
             {
                 await SignInManager.SignOutAsync();
@@ -152,6 +144,7 @@
     {
         [Required]
         [EmailAddress]
+        [Display(Name = "Email")]
         public string Email { get; set; } = "";
 
         [Required]

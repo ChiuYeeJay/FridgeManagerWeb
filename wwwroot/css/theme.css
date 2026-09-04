@@ -640,6 +640,53 @@ a {
     border-color: var(--color-accent-500);
 }
 
+.fm-password {
+    position: relative;
+}
+
+.fm-password .fm-input {
+    padding-right: 38px;
+}
+
+.fm-password-toggle {
+    position: absolute;
+    top: 50%;
+    right: 4px;
+    transform: translateY(-50%);
+    width: 30px;
+    height: 30px;
+    padding: 0;
+    border: none;
+    background: transparent;
+    color: var(--color-neutral-600);
+    cursor: pointer;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.fm-password-toggle:hover,
+.fm-password-toggle:focus-visible {
+    color: var(--color-text);
+}
+
+.fm-password-toggle:focus-visible {
+    outline: 1px solid var(--color-accent-500);
+    outline-offset: 1px;
+    border-radius: 4px;
+}
+
+.fm-password-toggle svg {
+    width: 16px;
+    height: 16px;
+    display: block;
+}
+
+.fm-password-toggle[aria-pressed="true"] .fm-password-eye,
+.fm-password-toggle:not([aria-pressed="true"]) .fm-password-eye-off {
+    display: none;
+}
+
 .fm-input.is-invalid {
     border-color: var(--color-danger);
 }

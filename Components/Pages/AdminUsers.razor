@@ -213,7 +213,10 @@ else
                         </div>
                         <div class="fm-field">
                             <label for="new-password">Password</label>
-                            <InputText id="new-password" type="password" class="fm-input" @bind-Value="Create.Password" />
+                            <div class="fm-password">
+                                <InputText id="new-password" type="@(_showCreatePassword ? "text" : "password")" class="fm-input" @bind-Value="Create.Password" />
+                                <PasswordRevealButton Revealed="_showCreatePassword" OnToggle="ToggleCreatePassword" />
+                            </div>
                             <ValidationMessage For="() => Create.Password" />
                         </div>
                         <div class="fm-field">
