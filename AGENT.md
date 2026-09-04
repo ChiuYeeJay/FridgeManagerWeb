@@ -88,10 +88,10 @@ Architecture rules:
 
 | Path | Role |
 |---|---|
-| `Components/Pages` | `Home.razor` (dashboard), `FoodList`, `FoodDetail`, `FoodForm` (+ `.razor.cs`) |
-| `Components/Shared` | `FoodCard`, `FoodFilterBar`, `FridgeElevation` |
+| `Components/Pages` | `Home.razor` (dashboard), `FoodList`, `FoodDetail`, `FoodForm` (+ `.razor.cs`), `AdminUsers` |
+| `Components/Shared` | `FoodCard`, `FoodFilterBar`, `FridgeElevation`, `ErrorFallback` |
 | `Components/Account` | Template Identity pages — see convention 2 |
-| `Services` | `InventoryService`, `CapacityService`, `CapacityQueries`, `ExpiryRules`, `FoodDisplay`, `UserClaims`, `FoodListState`, `FoodSortPreference` |
+| `Services` | `InventoryService`, `CapacityService`, `UserAdminService`, `CapacityQueries`, `ExpiryRules`, `FoodDisplay`, `UserClaims`, `FoodListState`, `FoodSortPreference` |
 | `Services/Models` | `FoodItemForm`, `FoodFilter`, `FoodSort`, `OperationResult`, `DashboardStats`, `*Dto` |
 | `Data` | `AppDbContext`, `DbSeeder`, `Entities/`, `Enums/`, `Migrations/` |
 | `wwwroot/css/theme.css` | Design tokens and `fm-*` classes from the mockup |
@@ -115,19 +115,13 @@ Architecture rules:
 
 ## Project status and scope
 
-Phases 1–2 of SPEC §10 are done. Remaining:
-
-- **Phase 3** — `/admin/users` (`IUserAdminService` + `AdminUsers.razor`,
-  `AdminOnly` policy at page level **and** `IsInRole("Admin")` inside the
-  service), global `ErrorBoundary`, README.
-- **Phase 4** — image upload (`InputFile`, JPG/PNG/WebP by content type,
-  5 MB via `OpenReadStream`, GUID filename, `wwwroot/uploads/`), UI polish,
-  bug fixes. **No new features in Phase 4.**
+Phases 1–4 of SPEC §10 are done.
 
 Do not implement SPEC §14 items (status history, AI autofill, announcements,
 placement recommendations, notifications, multi-fridge). Do not "fix" the
 known limitations in SPEC §13 (capacity race, circuit affinity, local file
-storage, no audit trail, approximate size units); document them instead.
+storage, no audit trail, approximate size units); they are documented in
+`README.md`.
 
 ## Working conventions
 
@@ -137,8 +131,7 @@ storage, no audit trail, approximate size units); document them instead.
 - Prefer editing existing components/services over adding new files. New UI
   uses `fm-*` classes from `theme.css`, not Bootstrap utilities.
 - When behaviour deviates from the spec, record it in
-  `docs/ARCHITECTURE.md` under the relevant phase's deviations list and keep
-  the "Still to come" section current. Do not edit `docs/SPEC_v3.md` unless
+  `docs/ARCHITECTURE.md` under Deviations. Do not edit `docs/SPEC_v3.md` unless
   asked.
 - Never commit secrets. The connection string is in `dotnet user-secrets`.
 - `wwwroot/uploads/*`, `bin/` and `obj/` are gitignored; keep them that way.

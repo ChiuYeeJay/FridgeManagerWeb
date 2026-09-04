@@ -28,9 +28,7 @@ else
                 <img src="@FoodDisplay.ImageUrl(_item)" alt="" />
             </div>
             <div class="text-muted" style="font-size:11px;margin-top:6px">
-                @(string.IsNullOrEmpty(_item.ImagePath)
-                    ? "Category plate — upload a photo in a later phase"
-                    : _item.ImagePath)
+                @(string.IsNullOrEmpty(_item.ImagePath) ? "Category plate" : "Uploaded photo")
             </div>
         </div>
         <div>

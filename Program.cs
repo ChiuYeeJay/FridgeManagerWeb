@@ -9,7 +9,8 @@ using FridgeManager.Services;
 var builder = WebApplication.CreateBuilder(args);
 
 builder.Services.AddRazorComponents()
-    .AddInteractiveServerComponents();
+    .AddInteractiveServerComponents(options =>
+        options.DetailedErrors = builder.Environment.IsDevelopment());
 
 builder.Services.AddCascadingAuthenticationState();
 builder.Services.AddScoped<IdentityRedirectManager>();
@@ -46,6 +47,7 @@ builder.Services.AddAuthorizationBuilder()
 builder.Services.AddSingleton<IEmailSender<ApplicationUser>, IdentityNoOpEmailSender>();
 builder.Services.AddScoped<IInventoryService, InventoryService>();
 builder.Services.AddScoped<ICapacityService, CapacityService>();
+builder.Services.AddScoped<IUserAdminService, UserAdminService>();
 builder.Services.AddScoped<FoodListState>();
 builder.Services.AddScoped<FoodSortPreference>();
 

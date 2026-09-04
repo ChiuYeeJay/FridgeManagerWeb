@@ -1,0 +1,16 @@
+<div class="page-error">
+    <div class="eyebrow">Something went wrong</div>
+    <h1 class="page-title">This page hit a snag</h1>
+    <p class="text-muted">An unexpected error occurred. Your data on the shelves is unchanged. Try again, or go back to the dashboard.</p>
+    <div class="admin-create-actions">
+        <a class="fm-btn fm-btn-primary" href="/">Back to dashboard</a>
+        <button type="button" class="fm-btn fm-btn-secondary" @onclick="ResetAsync">Try this page again</button>
+    </div>
+</div>
+
+@code {
+    [Parameter]
+    public EventCallback OnReset { get; set; }
+
+    private Task ResetAsync() => OnReset.InvokeAsync();
+}

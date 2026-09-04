@@ -7,6 +7,9 @@
         <a class="app-brand" href="/">Fridge Manager</a>
         <NavLink href="/" Match="NavLinkMatch.All">Dashboard</NavLink>
         <NavLink href="food">Food</NavLink>
+        <AuthorizeView Roles="Admin">
+            <NavLink href="admin/users">Users</NavLink>
+        </AuthorizeView>
         <span class="app-nav-spacer"></span>
         <div class="app-nav-user">
             <AuthorizeView>

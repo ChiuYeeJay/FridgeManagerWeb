@@ -4,12 +4,22 @@ using FridgeManager.Data;
 using FridgeManager.Data.Entities;
 using FridgeManager.Data.Enums;
 using FridgeManager.Services.Models;
+using Microsoft.AspNetCore.Components.Forms;
+using Microsoft.AspNetCore.Hosting;
 using Microsoft.EntityFrameworkCore;
 
 namespace FridgeManager.Services;
 
-public class InventoryService(IDbContextFactory<AppDbContext> factory) : IInventoryService
+public class InventoryService(IDbContextFactory<AppDbContext> factory, IWebHostEnvironment env) : IInventoryService
 {
+    public const long MaxImageBytes = 5 * 1024 * 1024;
+
+    private static readonly Dictionary<string, string> ImageExtensions = new(StringComparer.OrdinalIgnoreCase)
+    {
+        ["image/jpeg"] = ".jpg",
+        ["image/png"] = ".png",
+        ["image/webp"] = ".webp"
+    };
     public async Task<List<FoodItem>> GetItemsAsync(FoodFilter filter)
     {
         ArgumentNullException.ThrowIfNull(filter);
@@ -224,6 +234,47 @@ public class InventoryService(IDbContextFactory<AppDbContext> factory) : IInvent
         item.UpdatedAt = DateTime.UtcNow;
         await db.SaveChangesAsync();
         return OperationResult.Ok();
+    }
+
+    public async Task<OperationResult<string>> SaveImageAsync(IBrowserFile file)
+    {
+        ArgumentNullException.ThrowIfNull(file);
+
+        if (!ImageExtensions.TryGetValue(file.ContentType ?? "", out var extension))
+        {
+            return OperationResult<string>.Fail("Use a JPG, PNG or WebP image.");
+        }
+
+        if (string.IsNullOrWhiteSpace(env.WebRootPath))
+        {
+            return OperationResult<string>.Fail("Could not save that photo.");
+        }
+
+        var uploads = Path.Combine(env.WebRootPath, "uploads");
+        Directory.CreateDirectory(uploads);
+        var fileName = $"{Guid.NewGuid():N}{extension}";
+        var physicalPath = Path.Combine(uploads, fileName);
+
+        try
+        {
+            await using var input = file.OpenReadStream(MaxImageBytes);
+            await using var output = File.Create(physicalPath);
+            await input.CopyToAsync(output);
+        }
+        catch (IOException)
+        {
+            if (File.Exists(physicalPath))
+            {
+                File.Delete(physicalPath);
+            }
+
+            return OperationResult<string>.Fail(
+                file.Size > MaxImageBytes
+                    ? "That file is larger than 5 MB."
+                    : "Could not save that photo.");
+        }
+
+        return OperationResult<string>.Ok($"/uploads/{fileName}");
     }
 
     private static IQueryable<FoodItem> ApplySort(IQueryable<FoodItem> query, FoodFilter filter)

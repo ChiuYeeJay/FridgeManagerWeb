@@ -299,15 +299,20 @@ public sealed class InventoryServiceTests
     private sealed class ServiceHost : IDisposable
     {
         public SqliteDbFactory Factory { get; } = new();
+        public FakeWebHostEnvironment Env { get; } = new();
         public SeedData Seed { get; }
         public InventoryService Inventory { get; }
 
         public ServiceHost()
         {
             Seed = TestData.Seed(Factory);
-            Inventory = new InventoryService(Factory);
+            Inventory = new InventoryService(Factory, Env);
         }
 
-        public void Dispose() => Factory.Dispose();
+        public void Dispose()
+        {
+            Factory.Dispose();
+            Env.Dispose();
+        }
     }
 }

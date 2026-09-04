@@ -1,0 +1,174 @@
+@page "/admin/users"
+@attribute [Authorize(Policy = "AdminOnly")]
+
+<PageTitle>Members</PageTitle>
+
+<div class="admin-header">
+    <div>
+        <div class="eyebrow">Admin only</div>
+        <h1 class="page-title">Members</h1>
+    </div>
+    <p class="admin-lede text-muted">Members are never deleted. Disabling one blocks their login and hides them from owner lists while their items stay on the shelves.</p>
+</div>
+
+@if (_alert is not null)
+{
+    <div class="fm-alert-danger">
+        <div class="fm-alert-kicker">@_alert.Kicker</div>
+        <div class="fm-alert-body">@_alert.Body</div>
+    </div>
+}
+
+@if (_users is null)
+{
+    <p class="text-muted">Loading members…</p>
+}
+else
+{
+    <table class="fm-table admin-table">
+        <thead>
+            <tr>
+                <th>Username</th>
+                <th>Email</th>
+                <th style="width:130px">Quota</th>
+                <th style="width:110px">Active items</th>
+                <th style="width:110px">Status</th>
+                <th style="width:170px">Actions</th>
+            </tr>
+        </thead>
+        <tbody>
+            @foreach (var member in _users)
+            {
+                var editing = _editingUserId == member.UserId;
+                <tr @key="member.UserId" class="@(member.IsActive ? null : "admin-row-disabled")">
+                    <td>
+                        @member.DisplayName
+                        @if (member.IsAdmin)
+                        {
+                            <span class="fm-tag fm-tag-outline" style="margin-left:6px">Admin</span>
+                        }
+                    </td>
+                    <td class="text-muted">@member.Email</td>
+                    <td class="fig">
+                        @if (editing)
+                        {
+                            <input class="fm-input fig admin-quota-input @(_quotaInvalid ? "is-invalid" : null)"
+                                   type="number" min="0" step="1"
+                                   value="@_editQuota"
+                                   @oninput="OnQuotaInput" />
+                        }
+                        else
+                        {
+                            @member.Quota
+                        }
+                    </td>
+                    <td>
+                        <span class="fig">@member.ActiveCount</span>
+                        @if (member.AtLimit)
+                        {
+                            <span class="fm-tag fm-tag-danger" style="margin-left:4px">Full</span>
+                        }
+                    </td>
+                    <td>
+                        @if (member.IsActive)
+                        {
+                            <span class="fm-tag fm-tag-neutral">Active</span>
+                        }
+                        else
+                        {
+                            <span class="fm-tag fm-tag-outline">Disabled</span>
+                        }
+                    </td>
+                    <td>
+                        <div class="admin-actions">
+                            @if (editing)
+                            {
+                                <button type="button" class="fm-btn fm-btn-primary fm-btn-sm" disabled="@_busy" @onclick="SaveQuotaAsync">Save</button>
+                                <button type="button" class="fm-btn fm-btn-ghost fm-btn-sm" disabled="@_busy" @onclick="CancelEdit">Cancel</button>
+                            }
+                            else
+                            {
+                                <button type="button" class="fm-btn fm-btn-ghost fm-btn-sm" disabled="@_busy" @onclick="() => BeginEdit(member)">Edit quota</button>
+                                @if (member.IsActive)
+                                {
+                                    <button type="button" class="fm-btn fm-btn-ghost fm-btn-sm"
+                                            disabled="@(_busy || member.UserId == _currentUserId)"
+                                            @onclick="() => SetActiveAsync(member.UserId, false)">Disable</button>
+                                }
+                                else
+                                {
+                                    <button type="button" class="fm-btn fm-btn-ghost fm-btn-sm" disabled="@_busy"
+                                            @onclick="() => SetActiveAsync(member.UserId, true)">Enable</button>
+                                }
+                            }
+                        </div>
+                    </td>
+                </tr>
+            }
+        </tbody>
+    </table>
+
+    <div class="admin-split">
+        <div>
+            @if (!_createOpen)
+            {
+                <div class="admin-create-closed">
+                    <button type="button" class="fm-btn fm-btn-primary" @onclick="OpenCreate">+ Create member</button>
+                    <span class="text-muted" style="font-size:12px">@MemberSummary</span>
+                </div>
+            }
+            else
+            {
+                <div class="admin-create-head">
+                    <h4>Add a member</h4>
+                    <button type="button" class="fm-btn fm-btn-ghost fm-btn-sm" @onclick="CloseCreate">Close</button>
+                </div>
+                <EditForm Model="Create" OnValidSubmit="CreateAsync">
+                    <DataAnnotationsValidator />
+                    <div class="admin-create-grid">
+                        <div class="fm-field">
+                            <label for="new-username">Username</label>
+                            <InputText id="new-username" class="fm-input" @bind-Value="Create.UserName" placeholder="e.g. lena" />
+                            <ValidationMessage For="() => Create.UserName" />
+                        </div>
+                        <div class="fm-field">
+                            <label for="new-email">Email</label>
+                            <InputText id="new-email" class="fm-input" @bind-Value="Create.Email" placeholder="lena@fridge.local" />
+                            <ValidationMessage For="() => Create.Email" />
+                        </div>
+                        <div class="fm-field">
+                            <label for="new-password">Password</label>
+                            <InputText id="new-password" type="password" class="fm-input" @bind-Value="Create.Password" />
+                            <ValidationMessage For="() => Create.Password" />
+                        </div>
+                        <div class="fm-field">
+                            <label for="new-quota">Quota</label>
+                            <InputNumber id="new-quota" class="fm-input fig" @bind-Value="Create.Quota" />
+                            <ValidationMessage For="() => Create.Quota" />
+                        </div>
+                    </div>
+                    <div class="admin-create-actions">
+                        <button class="fm-btn fm-btn-primary" type="submit" disabled="@_busy">Create member</button>
+                        <button class="fm-btn fm-btn-secondary" type="button" disabled="@_busy" @onclick="CloseCreate">Cancel</button>
+                    </div>
+                </EditForm>
+            }
+        </div>
+        <aside class="admin-totals">
+            <h5>Fridge total</h5>
+            <div class="admin-total-row">
+                <span>Quotas granted</span>
+                <span class="fig">@_quotaGranted items</span>
+            </div>
+            <div class="admin-total-row">
+                <span>Currently held</span>
+                <span class="fig">@_held items</span>
+            </div>
+            <div class="admin-total-row admin-total-row-last">
+                <span>Units in use</span>
+                <span class="fig">@_usedUnits / @_totalCapacity</span>
+            </div>
+            <p class="text-muted" style="font-size:11px;margin-top:10px;text-align:justify">Quotas may exceed shelf capacity; the capacity guard is the binding constraint.</p>
+        </aside>
+    </div>
+}

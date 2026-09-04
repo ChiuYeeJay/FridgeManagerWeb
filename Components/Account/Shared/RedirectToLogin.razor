@@ -1,8 +1,21 @@
 ﻿@inject NavigationManager NavigationManager
 
 @code {
-    protected override void OnInitialized()
+    [CascadingParameter]
+    private Task<AuthenticationState>? AuthState { get; set; }
+
+    protected override async Task OnInitializedAsync()
     {
+        if (AuthState is not null)
+        {
+            var user = (await AuthState).User;
+            if (user.Identity?.IsAuthenticated == true)
+            {
+                NavigationManager.NavigateTo("Account/AccessDenied", forceLoad: true);
+                return;
+            }
+        }
+
         NavigationManager.NavigateTo($"Account/Login?returnUrl={Uri.EscapeDataString(NavigationManager.Uri)}", forceLoad: true);
     }
 }

@@ -40,8 +40,14 @@ public partial class FoodForm
     private int _originalSize;
     private string? _error;
     private string? _blocked;
+    private IBrowserFile? _pendingFile;
+    private string? _previewUrl;
 
     private bool IsEdit => Id > 0;
+
+    private string? PhotoSrc
+        => _previewUrl
+           ?? (string.IsNullOrEmpty(Form.ImagePath) ? null : Form.ImagePath);
 
     private string CancelHref => IsEdit ? $"food/{Id}" : ListState.LastListUrl;
 
@@ -190,12 +196,58 @@ public partial class FoodForm
     private void SetExpiryYears(int years)
         => Form.ExpirationDate = DateOnly.FromDateTime(DateTime.UtcNow).AddYears(years);
 
+    private async Task OnPhotoSelected(InputFileChangeEventArgs e)
+    {
+        var file = e.File;
+        _error = null;
+
+        if (!IsAllowedImageType(file.ContentType))
+        {
+            _error = "Use a JPG, PNG or WebP image.";
+            _pendingFile = null;
+            _previewUrl = null;
+            return;
+        }
+
+        try
+        {
+            await using var stream = file.OpenReadStream(InventoryService.MaxImageBytes);
+            using var buffer = new MemoryStream();
+            await stream.CopyToAsync(buffer);
+            var bytes = buffer.ToArray();
+            _pendingFile = new BufferedBrowserFile(file.Name, file.ContentType, bytes, file.LastModified);
+            _previewUrl = $"data:{file.ContentType};base64,{Convert.ToBase64String(bytes)}";
+        }
+        catch (IOException)
+        {
+            _error = "That file is larger than 5 MB.";
+            _pendingFile = null;
+            _previewUrl = null;
+        }
+    }
+
+    private static bool IsAllowedImageType(string? contentType)
+        => contentType is "image/jpeg" or "image/png" or "image/webp";
+
     private async Task SaveAsync()
     {
         _saving = true;
         _error = null;
         try
         {
+            if (_pendingFile is not null)
+            {
+                var uploaded = await Inventory.SaveImageAsync(_pendingFile);
+                if (!uploaded.Success || uploaded.Value is null)
+                {
+                    _error = uploaded.Error;
+                    return;
+                }
+
+                Form.ImagePath = uploaded.Value;
+                _pendingFile = null;
+            }
+
             if (IsEdit)
             {
                 var result = await Inventory.UpdateItemAsync(Id, Form, _user);
@@ -221,6 +273,35 @@ public partial class FoodForm
         finally
         {
             _saving = false;
+        }
+    }
+
+    private sealed class BufferedBrowserFile : IBrowserFile
+    {
+        private readonly byte[] _bytes;
+
+        public BufferedBrowserFile(string name, string contentType, byte[] bytes, DateTimeOffset lastModified)
+        {
+            Name = name;
+            ContentType = contentType;
+            _bytes = bytes;
+            LastModified = lastModified;
+        }
+
+        public string Name { get; }
+        public DateTimeOffset LastModified { get; }
+        public long Size => _bytes.Length;
+        public string ContentType { get; }
+
+        public Stream OpenReadStream(long maxAllowedSize = 512000, CancellationToken cancellationToken = default)
+        {
+            if (Size > maxAllowedSize)
+            {
+                throw new IOException(
+                    $"Supplied file with size {Size} bytes exceeds the maximum of {maxAllowedSize} bytes.");
+            }
+
+            return new MemoryStream(_bytes, writable: false);
         }
     }
 }

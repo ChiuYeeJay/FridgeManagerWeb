@@ -29,7 +29,7 @@ internal sealed class IdentityRevalidatingAuthenticationStateProvider(
     private async Task<bool> ValidateSecurityStampAsync(UserManager<ApplicationUser> userManager, ClaimsPrincipal principal)
     {
         var user = await userManager.GetUserAsync(principal);
-        if (user is null)
+        if (user is null || !user.IsActive)
         {
             return false;
         }

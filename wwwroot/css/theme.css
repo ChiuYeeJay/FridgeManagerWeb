@@ -795,6 +795,18 @@ textarea.fm-input {
     border-radius: var(--radius-md);
 }
 
+.form-plate-picker {
+    cursor: pointer;
+    display: grid;
+}
+
+.form-plate-hint {
+    font-size: 11px;
+    color: var(--color-neutral-600);
+    letter-spacing: 0.05em;
+    padding: 0 12px;
+}
+
 .form-plate img {
     width: 100%;
     height: 100%;
@@ -1208,7 +1220,141 @@ a.fridge-chip:hover .fridge-chip-name {
     font-size: 14px;
 }
 
+.admin-header {
+    display: flex;
+    align-items: flex-end;
+    justify-content: space-between;
+    gap: 24px;
+    margin-bottom: 20px;
+}
+
+.admin-lede {
+    font-size: 12px;
+    max-width: 330px;
+    text-align: justify;
+    margin: 0;
+}
+
+.admin-table {
+    margin-bottom: 30px;
+}
+
+.admin-row-disabled {
+    opacity: 0.6;
+}
+
+.admin-quota-input {
+    width: 72px;
+    min-height: 30px;
+    padding: 4px 8px;
+}
+
+.admin-actions {
+    display: flex;
+    gap: 4px;
+    flex-wrap: wrap;
+}
+
+.admin-split {
+    border-top: 1px solid var(--color-divider);
+    padding-top: 24px;
+    display: grid;
+    grid-template-columns: 1fr 300px;
+    gap: 36px;
+}
+
+.admin-create-closed {
+    display: flex;
+    align-items: baseline;
+    gap: 18px;
+}
+
+.admin-create-head {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    margin-bottom: 14px;
+}
+
+.admin-create-head h4 {
+    margin: 0;
+    font-size: 22px;
+}
+
+.admin-create-grid {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 14px;
+    align-items: end;
+}
+
+.admin-create-actions {
+    display: flex;
+    gap: 10px;
+    margin-top: 16px;
+}
+
+.admin-totals {
+    border-left: 1px solid var(--color-divider);
+    padding-left: 28px;
+}
+
+.admin-totals h5 {
+    margin: 0 0 10px;
+    font-size: 16px;
+}
+
+.admin-total-row {
+    display: flex;
+    justify-content: space-between;
+    font-size: 13px;
+    padding: 6px 0;
+    border-bottom: 1px solid var(--color-divider);
+}
+
+.admin-total-row-last {
+    border-bottom: none;
+}
+
+.page-error {
+    max-width: 520px;
+}
+
+.page-error h1 {
+    margin-bottom: 8px;
+}
+
+#blazor-error-ui {
+    font-family: var(--font-body);
+    font-size: 14px;
+}
+
+#blazor-error-ui a {
+    color: var(--color-accent-700);
+    margin-left: 8px;
+}
+
 @media (max-width: 960px) {
+    .admin-header {
+        flex-direction: column;
+        align-items: flex-start;
+    }
+
+    .admin-split {
+        grid-template-columns: 1fr;
+    }
+
+    .admin-totals {
+        border-left: none;
+        padding-left: 0;
+        border-top: 1px solid var(--color-divider);
+        padding-top: 18px;
+    }
+
+    .admin-create-grid {
+        grid-template-columns: 1fr 1fr;
+    }
+
     .account-grid-rule {
         display: none;
     }

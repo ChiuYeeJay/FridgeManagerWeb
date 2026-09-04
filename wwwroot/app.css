@@ -15,13 +15,15 @@ h1:focus {
 }
 
 .blazor-error-boundary {
-    background: var(--color-danger);
-    padding: 1rem 1.25rem;
-    color: white;
+    background: var(--color-danger-tint);
+    border: 1px solid var(--color-danger);
+    border-radius: var(--radius-md);
+    padding: 14px 16px;
+    color: var(--color-danger);
 }
 
 .blazor-error-boundary::after {
-    content: "An error has occurred.";
+    content: none;
 }
 
 .form-floating > .form-control-plaintext::placeholder,
