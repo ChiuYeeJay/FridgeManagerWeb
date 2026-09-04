@@ -591,14 +591,15 @@ a {
 
 .filter-toggles {
     display: flex;
+    flex: 1;
     gap: 16px;
     padding-bottom: 8px;
     flex-wrap: wrap;
+    align-items: center;
 }
 
 .filter-clear {
     margin-left: auto;
-    margin-bottom: 8px;
 }
 
 .filter-hint {
@@ -733,10 +734,44 @@ textarea.fm-input {
     border-radius: var(--radius-md);
 }
 
+.detail-plate-zoom {
+    display: block;
+    width: 100%;
+    padding: 0;
+    border: none;
+    cursor: zoom-in;
+}
+
 .detail-plate img {
     width: 100%;
     height: 100%;
     object-fit: cover;
+}
+
+.fm-lightbox {
+    position: fixed;
+    inset: 0;
+    z-index: 40;
+    background: color-mix(in srgb, var(--color-text) 72%, transparent);
+    display: grid;
+    place-items: center;
+    padding: 24px;
+    cursor: zoom-out;
+}
+
+.fm-lightbox img {
+    max-width: 92vw;
+    max-height: 92vh;
+    object-fit: contain;
+    cursor: default;
+}
+
+.fm-lightbox-close {
+    position: absolute;
+    top: 16px;
+    right: 16px;
+    color: var(--color-bg);
+    border-color: transparent;
 }
 
 .detail-tags {
@@ -798,6 +833,22 @@ textarea.fm-input {
 .form-plate-picker {
     cursor: pointer;
     display: grid;
+    position: relative;
+}
+
+.form-plate-picker.is-dragging {
+    outline: 2px dashed var(--color-accent-500);
+    outline-offset: -2px;
+}
+
+.form-plate-input {
+    position: absolute;
+    inset: 0;
+    opacity: 0;
+    cursor: pointer;
+    width: 100%;
+    height: 100%;
+    z-index: 1;
 }
 
 .form-plate-hint {
@@ -811,6 +862,21 @@ textarea.fm-input {
     width: 100%;
     height: 100%;
     object-fit: cover;
+}
+
+.form-photo-choose {
+    margin-top: 10px;
+}
+
+.form-photo-hint {
+    font-size: 11px;
+    margin-top: 8px;
+}
+
+.field-error {
+    font-size: 12px;
+    color: var(--color-danger);
+    margin-top: 8px;
 }
 
 .capacity-line {
@@ -1197,6 +1263,10 @@ a.fridge-chip:hover .fridge-chip-name {
     background: color-mix(in srgb, var(--color-accent-400) 18%, transparent);
 }
 
+.fm-alert-success .fm-alert-kicker {
+    color: var(--color-accent-700);
+}
+
 .fm-help {
     font-size: 13px;
     color: var(--color-neutral-600);
@@ -1221,26 +1291,68 @@ a.fridge-chip:hover .fridge-chip-name {
 }
 
 .admin-header {
-    display: flex;
-    align-items: flex-end;
-    justify-content: space-between;
-    gap: 24px;
     margin-bottom: 20px;
 }
 
 .admin-lede {
     font-size: 12px;
-    max-width: 330px;
-    text-align: justify;
-    margin: 0;
+    max-width: 42em;
+    margin: 0 0 28px;
 }
 
 .admin-table {
     margin-bottom: 30px;
+    table-layout: fixed;
 }
 
-.admin-row-disabled {
-    opacity: 0.6;
+.admin-col-name { width: 22%; }
+.admin-col-email { width: 28%; }
+.admin-col-quota { width: 88px; }
+.admin-col-count { width: 110px; }
+.admin-col-status,
+.admin-status-cell {
+    width: 110px;
+}
+
+.fm-table.admin-table th.admin-col-name,
+.fm-table.admin-table th.admin-col-email,
+.fm-table.admin-table td.admin-wrap {
+    padding-right: 20px;
+}
+
+.fm-table.admin-table th.admin-col-status,
+.fm-table.admin-table td.admin-status-cell {
+    padding-right: 16px;
+}
+
+.fm-table.admin-table th.admin-col-actions,
+.fm-table.admin-table td.admin-actions-cell {
+    width: 280px;
+    border-left: 1px solid var(--color-divider);
+    padding-left: 28px;
+}
+
+.admin-wrap {
+    overflow-wrap: anywhere;
+    word-break: break-word;
+}
+
+.admin-name {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 6px;
+    min-width: 0;
+}
+
+.admin-name-text {
+    overflow-wrap: anywhere;
+    word-break: break-word;
+    min-width: 0;
+}
+
+.admin-full-tag {
+    margin-left: 4px;
 }
 
 .admin-quota-input {
@@ -1249,10 +1361,36 @@ a.fridge-chip:hover .fridge-chip-name {
     padding: 4px 8px;
 }
 
+.admin-text-input {
+    width: 100%;
+    min-width: 0;
+    min-height: 30px;
+    padding: 4px 8px;
+}
+
 .admin-actions {
     display: flex;
-    gap: 4px;
+    gap: 6px;
     flex-wrap: wrap;
+}
+
+.admin-disabled {
+    margin: -12px 0 30px;
+}
+
+.admin-disabled-toggle {
+    gap: 8px;
+    margin-bottom: 12px;
+}
+
+.admin-disabled-chevron {
+    display: inline-block;
+    font-size: 12px;
+    transition: transform 0.12s ease;
+}
+
+.admin-disabled-chevron.is-open {
+    transform: rotate(90deg);
 }
 
 .admin-split {
@@ -1294,6 +1432,14 @@ a.fridge-chip:hover .fridge-chip-name {
     margin-top: 16px;
 }
 
+.admin-create-admin {
+    margin-top: 14px;
+}
+
+.admin-member-summary {
+    font-size: 12px;
+}
+
 .admin-totals {
     border-left: 1px solid var(--color-divider);
     padding-left: 28px;
@@ -1316,6 +1462,12 @@ a.fridge-chip:hover .fridge-chip-name {
     border-bottom: none;
 }
 
+.admin-totals-note {
+    font-size: 11px;
+    margin-top: 10px;
+    text-align: justify;
+}
+
 .page-error {
     max-width: 520px;
 }
@@ -1335,11 +1487,6 @@ a.fridge-chip:hover .fridge-chip-name {
 }
 
 @media (max-width: 960px) {
-    .admin-header {
-        flex-direction: column;
-        align-items: flex-start;
-    }
-
     .admin-split {
         grid-template-columns: 1fr;
     }

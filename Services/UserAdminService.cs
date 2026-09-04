@@ -1,3 +1,4 @@
+using System.ComponentModel.DataAnnotations;
 using System.Security.Claims;
 using FridgeManager.Data;
 using FridgeManager.Services.Models;
@@ -12,6 +13,7 @@ public class UserAdminService(
     : IUserAdminService
 {
     public const string AdministratorsOnly = "Administrators only.";
+    public const string CannotRemoveOwnAdmin = "You cannot remove your own admin role.";
 
     public async Task<OperationResult<List<AdminUserDto>>> GetUsersAsync(ClaimsPrincipal actor)
     {
@@ -56,6 +58,7 @@ public class UserAdminService(
         string email,
         string password,
         int quota,
+        bool isAdmin,
         ClaimsPrincipal actor)
     {
         ArgumentNullException.ThrowIfNull(actor);
@@ -112,7 +115,8 @@ public class UserAdminService(
             return OperationResult.Fail(FormatErrors(created));
         }
 
-        var role = await users.AddToRoleAsync(user, "User");
+        var roleName = isAdmin ? "Admin" : "User";
+        var role = await users.AddToRoleAsync(user, roleName);
         if (!role.Succeeded)
         {
             return OperationResult.Fail(FormatErrors(role));
@@ -193,6 +197,156 @@ public class UserAdminService(
         if (!updated.Succeeded)
         {
             return OperationResult.Fail(FormatErrors(updated));
+        }
+
+        return OperationResult.Ok();
+    }
+
+    public async Task<OperationResult> UpdateMemberAsync(
+        string userId,
+        string userName,
+        string email,
+        int quota,
+        ClaimsPrincipal actor)
+    {
+        ArgumentNullException.ThrowIfNull(actor);
+        if (!UserClaims.IsAdmin(actor))
+        {
+            return OperationResult.Fail(AdministratorsOnly);
+        }
+
+        userName = userName?.Trim() ?? "";
+        email = email?.Trim() ?? "";
+
+        if (string.IsNullOrWhiteSpace(userName))
+        {
+            return OperationResult.Fail("Username is required.");
+        }
+
+        if (userName.Length > 64)
+        {
+            return OperationResult.Fail("Username is too long.");
+        }
+
+        if (string.IsNullOrWhiteSpace(email))
+        {
+            return OperationResult.Fail("Email is required.");
+        }
+
+        if (!new EmailAddressAttribute().IsValid(email))
+        {
+            return OperationResult.Fail("Enter a valid email address.");
+        }
+
+        if (quota < 0)
+        {
+            return OperationResult.Fail("Quota cannot be negative.");
+        }
+
+        var user = await users.FindByIdAsync(userId);
+        if (user is null)
+        {
+            return OperationResult.Fail("User not found.");
+        }
+
+        var nameOwner = await users.FindByNameAsync(userName);
+        if (nameOwner is not null && nameOwner.Id != user.Id)
+        {
+            return OperationResult.Fail("That username is already in use.");
+        }
+
+        var emailOwner = await users.FindByEmailAsync(email);
+        if (emailOwner is not null && emailOwner.Id != user.Id)
+        {
+            return OperationResult.Fail("That email is already in use.");
+        }
+
+        await using var db = await factory.CreateDbContextAsync();
+        var used = await CapacityQueries.UserUsageAsync(db, user.Id);
+        if (quota < used)
+        {
+            var name = FoodDisplay.OwnerLabel(user);
+            return OperationResult.Fail(
+                $"{name} currently holds {used} active items; a quota of {quota} would put them over. Set {used} or higher, or ask them to clear items first.");
+        }
+
+        var normalizedName = users.NormalizeName(userName);
+        if (!string.Equals(user.NormalizedUserName, normalizedName, StringComparison.Ordinal))
+        {
+            var renamed = await users.SetUserNameAsync(user, userName);
+            if (!renamed.Succeeded)
+            {
+                return OperationResult.Fail(FormatErrors(renamed));
+            }
+        }
+
+        var normalizedEmail = users.NormalizeEmail(email);
+        if (!string.Equals(user.NormalizedEmail, normalizedEmail, StringComparison.Ordinal))
+        {
+            var setEmail = await users.SetEmailAsync(user, email);
+            if (!setEmail.Succeeded)
+            {
+                return OperationResult.Fail(FormatErrors(setEmail));
+            }
+
+            user.EmailConfirmed = true;
+            var confirmed = await users.UpdateAsync(user);
+            if (!confirmed.Succeeded)
+            {
+                return OperationResult.Fail(FormatErrors(confirmed));
+            }
+        }
+
+        if (user.ItemQuota != quota)
+        {
+            user.ItemQuota = quota;
+            var updated = await users.UpdateAsync(user);
+            if (!updated.Succeeded)
+            {
+                return OperationResult.Fail(FormatErrors(updated));
+            }
+        }
+
+        return OperationResult.Ok();
+    }
+
+    public async Task<OperationResult> SetAdminAsync(string userId, bool isAdmin, ClaimsPrincipal actor)
+    {
+        ArgumentNullException.ThrowIfNull(actor);
+        if (!UserClaims.IsAdmin(actor))
+        {
+            return OperationResult.Fail(AdministratorsOnly);
+        }
+
+        var user = await users.FindByIdAsync(userId);
+        if (user is null)
+        {
+            return OperationResult.Fail("User not found.");
+        }
+
+        if (!isAdmin && user.Id == UserClaims.GetUserId(actor))
+        {
+            return OperationResult.Fail(CannotRemoveOwnAdmin);
+        }
+
+        var alreadyAdmin = await users.IsInRoleAsync(user, "Admin");
+        if (alreadyAdmin == isAdmin)
+        {
+            return OperationResult.Ok();
+        }
+
+        var changed = isAdmin
+            ? await users.AddToRoleAsync(user, "Admin")
+            : await users.RemoveFromRoleAsync(user, "Admin");
+        if (!changed.Succeeded)
+        {
+            return OperationResult.Fail(FormatErrors(changed));
+        }
+
+        var stamped = await users.UpdateSecurityStampAsync(user);
+        if (!stamped.Succeeded)
+        {
+            return OperationResult.Fail(FormatErrors(stamped));
         }
 
         return OperationResult.Ok();

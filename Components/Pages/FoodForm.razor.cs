@@ -42,6 +42,9 @@ public partial class FoodForm
     private string? _blocked;
     private IBrowserFile? _pendingFile;
     private string? _previewUrl;
+    private string? _photoError;
+    private bool _dragging;
+    private int _dragDepth;
 
     private bool IsEdit => Id > 0;
 
@@ -101,14 +104,7 @@ public partial class FoodForm
     protected override async Task OnInitializedAsync()
     {
         _user = (await AuthState).User;
-        _shelves = await Capacity.GetAllShelfUsageAsync();
-
-        var userId = UserClaims.GetUserId(_user);
-        if (!string.IsNullOrEmpty(userId))
-        {
-            _allowance = (await Capacity.GetAllUserUsageAsync())
-                .FirstOrDefault(u => u.UserId == userId);
-        }
+        await RefreshCapacityAsync();
 
         if (IsEdit)
         {
@@ -149,6 +145,18 @@ public partial class FoodForm
         }
 
         _loading = false;
+    }
+
+    private async Task RefreshCapacityAsync()
+    {
+        _shelves = await Capacity.GetAllShelfUsageAsync();
+
+        var userId = UserClaims.GetUserId(_user);
+        if (!string.IsNullOrEmpty(userId))
+        {
+            _allowance = (await Capacity.GetAllUserUsageAsync())
+                .FirstOrDefault(u => u.UserId == userId);
+        }
     }
 
     private int RemainingFor(ShelfUsageDto? shelf)
@@ -196,14 +204,31 @@ public partial class FoodForm
     private void SetExpiryYears(int years)
         => Form.ExpirationDate = DateOnly.FromDateTime(DateTime.UtcNow).AddYears(years);
 
+    private void OnPhotoDragEnter()
+    {
+        _dragDepth++;
+        _dragging = true;
+    }
+
+    private void OnPhotoDragLeave()
+    {
+        _dragDepth = Math.Max(0, _dragDepth - 1);
+        if (_dragDepth == 0)
+        {
+            _dragging = false;
+        }
+    }
+
     private async Task OnPhotoSelected(InputFileChangeEventArgs e)
     {
         var file = e.File;
-        _error = null;
+        _photoError = null;
+        _dragging = false;
+        _dragDepth = 0;
 
         if (!IsAllowedImageType(file.ContentType))
         {
-            _error = "Use a JPG, PNG or WebP image.";
+            _photoError = "Use a JPG, PNG or WebP image.";
             _pendingFile = null;
             _previewUrl = null;
             return;
@@ -220,7 +245,7 @@ public partial class FoodForm
         }
         catch (IOException)
         {
-            _error = "That file is larger than 5 MB.";
+            _photoError = "That file is larger than 5 MB.";
             _pendingFile = null;
             _previewUrl = null;
         }
@@ -241,6 +266,7 @@ public partial class FoodForm
                 if (!uploaded.Success || uploaded.Value is null)
                 {
                     _error = uploaded.Error;
+                    await RefreshCapacityAsync();
                     return;
                 }
 
@@ -254,6 +280,7 @@ public partial class FoodForm
                 if (!result.Success)
                 {
                     _error = result.Error;
+                    await RefreshCapacityAsync();
                     return;
                 }
 
@@ -265,6 +292,7 @@ public partial class FoodForm
             if (!created.Success || created.Value is null)
             {
                 _error = created.Error;
+                await RefreshCapacityAsync();
                 return;
             }
 

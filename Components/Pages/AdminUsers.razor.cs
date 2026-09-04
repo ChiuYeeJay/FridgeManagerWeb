@@ -23,15 +23,24 @@ public partial class AdminUsers
     private ClaimsPrincipal _actor = new();
     private string? _currentUserId;
     private string? _editingUserId;
+    private string _editUserName = "";
+    private string _editEmail = "";
     private int _editQuota;
-    private bool _quotaInvalid;
+    private bool _editInvalid;
     private bool _createOpen;
+    private bool _disabledOpen;
     private bool _busy;
     private Alert? _alert;
     private int _quotaGranted;
     private int _held;
     private int _usedUnits;
     private int _totalCapacity;
+
+    private IReadOnlyList<AdminUserDto> ActiveMembers
+        => _users?.Where(u => u.IsActive).ToList() ?? [];
+
+    private IReadOnlyList<AdminUserDto> DisabledMembers
+        => _users?.Where(u => !u.IsActive).ToList() ?? [];
 
     private string MemberSummary
     {
@@ -42,8 +51,8 @@ public partial class AdminUsers
                 return "";
             }
 
-            var active = _users.Count(u => u.IsActive);
-            var disabled = _users.Count - active;
+            var active = ActiveMembers.Count;
+            var disabled = DisabledMembers.Count;
             var activeLabel = active == 1 ? "One member active" : $"{active} members active";
             var disabledLabel = disabled switch
             {
@@ -73,7 +82,7 @@ public partial class AdminUsers
         }
 
         _users = users.Value;
-        _quotaGranted = _users.Sum(u => u.Quota);
+        _quotaGranted = _users.Where(u => u.IsActive).Sum(u => u.Quota);
         _held = _users.Sum(u => u.ActiveCount);
 
         var stats = await Capacity.GetDashboardStatsAsync();
@@ -84,16 +93,24 @@ public partial class AdminUsers
     private void BeginEdit(AdminUserDto member)
     {
         _alert = null;
-        _quotaInvalid = false;
+        _editInvalid = false;
         _editingUserId = member.UserId;
+        _editUserName = member.UserName;
+        _editEmail = member.Email;
         _editQuota = member.Quota;
     }
 
     private void CancelEdit()
     {
         _editingUserId = null;
-        _quotaInvalid = false;
+        _editInvalid = false;
     }
+
+    private void OnUserNameInput(ChangeEventArgs e)
+        => _editUserName = e.Value?.ToString() ?? "";
+
+    private void OnEmailInput(ChangeEventArgs e)
+        => _editEmail = e.Value?.ToString() ?? "";
 
     private void OnQuotaInput(ChangeEventArgs e)
     {
@@ -103,7 +120,7 @@ public partial class AdminUsers
         }
     }
 
-    private async Task SaveQuotaAsync()
+    private async Task SaveEditAsync()
     {
         if (_editingUserId is null)
         {
@@ -112,14 +129,19 @@ public partial class AdminUsers
 
         _busy = true;
         _alert = null;
-        _quotaInvalid = false;
+        _editInvalid = false;
         try
         {
-            var result = await Admin.SetQuotaAsync(_editingUserId, _editQuota, _actor);
+            var result = await Admin.UpdateMemberAsync(
+                _editingUserId,
+                _editUserName,
+                _editEmail,
+                _editQuota,
+                _actor);
             if (!result.Success)
             {
-                _quotaInvalid = true;
-                _alert = new Alert("Quota not changed", result.Error ?? "Could not update quota.");
+                _editInvalid = true;
+                _alert = new Alert("Could not update", result.Error ?? "Could not update this member.");
                 return;
             }
 
@@ -153,6 +175,33 @@ public partial class AdminUsers
         }
     }
 
+    private async Task SetAdminAsync(string userId, bool isAdmin)
+    {
+        _busy = true;
+        _alert = null;
+        try
+        {
+            var result = await Admin.SetAdminAsync(userId, isAdmin, _actor);
+            if (!result.Success)
+            {
+                _alert = new Alert("Could not update", result.Error ?? "Could not update this member.");
+                return;
+            }
+
+            await LoadAsync();
+            _alert = new Alert(
+                "Role updated",
+                "This member will have the new permission at their next sign-in.",
+                Success: true);
+        }
+        finally
+        {
+            _busy = false;
+        }
+    }
+
+    private void ToggleDisabled() => _disabledOpen = !_disabledOpen;
+
     private void OpenCreate()
     {
         _alert = null;
@@ -176,6 +225,7 @@ public partial class AdminUsers
                 Create.Email,
                 Create.Password,
                 Create.Quota,
+                Create.IsAdmin,
                 _actor);
             if (!result.Success)
             {
@@ -192,7 +242,7 @@ public partial class AdminUsers
         }
     }
 
-    private sealed record Alert(string Kicker, string Body);
+    private sealed record Alert(string Kicker, string Body, bool Success = false);
 
     private sealed class CreateMemberForm
     {
@@ -212,12 +262,15 @@ public partial class AdminUsers
         [Range(0, 999)]
         public int Quota { get; set; } = 5;
 
+        public bool IsAdmin { get; set; }
+
         public void Reset()
         {
             UserName = "";
             Email = "";
             Password = "";
             Quota = 5;
+            IsAdmin = false;
         }
     }
 }

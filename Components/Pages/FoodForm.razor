@@ -23,7 +23,10 @@ else
         <div class="fm-alert-danger">
             <div class="fm-alert-kicker">Could not save</div>
             <div class="fm-alert-body">@_error</div>
-            <div class="fm-alert-hint">@RoomHint</div>
+            @if (Insufficient)
+            {
+                <div class="fm-alert-hint">@RoomHint</div>
+            }
         </div>
     }
 
@@ -115,7 +118,7 @@ else
             <aside class="form-aside">
                 <div>
                     <h5>Photo</h5>
-                    <label class="form-plate form-plate-picker" for="item-photo">
+                    <div class="form-plate form-plate-picker @(_dragging ? "is-dragging" : null)">
                         @if (PhotoSrc is not null)
                         {
                             <img src="@PhotoSrc" alt="" />
@@ -124,13 +127,19 @@ else
                         {
                             <span class="form-plate-hint">DROP A PHOTO<br>or choose a file</span>
                         }
-                    </label>
-                    <InputFile id="item-photo"
-                               class="visually-hidden"
-                               accept=".jpg,.jpeg,.png,.webp,image/jpeg,image/png,image/webp"
-                               OnChange="OnPhotoSelected" />
-                    <label class="fm-btn fm-btn-secondary fm-btn-block" for="item-photo" style="margin-top:10px">Choose file…</label>
-                    <div class="text-muted" style="font-size:11px;margin-top:8px">JPG, PNG or WebP · 5 MB maximum. Left empty, the category plate is used.</div>
+                        <InputFile id="item-photo"
+                                   class="form-plate-input"
+                                   accept=".jpg,.jpeg,.png,.webp,image/jpeg,image/png,image/webp"
+                                   OnChange="OnPhotoSelected"
+                                   @ondragenter="OnPhotoDragEnter"
+                                   @ondragleave="OnPhotoDragLeave" />
+                    </div>
+                    <label class="fm-btn fm-btn-secondary fm-btn-block form-photo-choose" for="item-photo">Choose file…</label>
+                    @if (_photoError is not null)
+                    {
+                        <div class="field-error">@_photoError</div>
+                    }
+                    <div class="text-muted form-photo-hint">JPG, PNG or WebP · 5 MB maximum. Left empty, the category plate is used.</div>
                 </div>
                 @if (_allowance is not null)
                 {

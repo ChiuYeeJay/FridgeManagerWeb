@@ -39,11 +39,12 @@ FoodForm.razor
 
 ```text
 AdminUsers.razor
-  → UserAdminService.GetUsersAsync / SetQuotaAsync / SetActiveAsync / CreateUserAsync
+  → UserAdminService.GetUsersAsync / UpdateMemberAsync / SetQuotaAsync / SetActiveAsync / SetAdminAsync / CreateUserAsync
       → actor.IsInRole("Admin") or Fail("Administrators only.")
-      → SetQuota: reject if quota < current Active count
+      → UpdateMember / SetQuota: reject if quota < current Active count; username and email must be unique
       → SetActive(false): refuse self; IsActive = false; UpdateSecurityStampAsync
-      → CreateUser: Identity CreateAsync, EmailConfirmed, role User
+      → SetAdmin: refuse removing own admin role; add/remove Admin; UpdateSecurityStampAsync
+      → CreateUser: Identity CreateAsync, EmailConfirmed, role Admin or User
 ```
 
 Expected rule violations never throw. They return `OperationResult` / `OperationResult<T>` with a user-facing `Error`.
@@ -150,6 +151,8 @@ Owner is shown as a chip on the card plate (`You` when the viewer owns the item)
 - Search uses `ToLower().Contains` so the same query runs on PostgreSQL and SQLite.
 - Re-activation of a consumed/missing/discarded item is rejected rather than re-running quota/capacity guards.
 - `IUserAdminService` methods take `ClaimsPrincipal actor` (spec snippet omitted it; §3.4 requires it).
+- `CreateUserAsync` takes `bool isAdmin` so a new member can be created as an administrator. `SetAdminAsync` promotes or demotes an existing member; an admin cannot remove their own admin role.
+- `UpdateMemberAsync` lets an admin change a member's username, email and quota in one save. Username and email must stay unique.
 - `GetUsersAsync` returns `AdminUserDto`, not `List<ApplicationUser>`.
 - Item-count line on the list is `{matched} of {active} active items` (or `{n} items` when Status is not Active).
 - Account Identity markup uses `fm-*` styles; render mode and POST handlers stay in place. Login looks up by email or username so admin-created members can sign in on the email field.
