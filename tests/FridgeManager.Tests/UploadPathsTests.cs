@@ -29,6 +29,18 @@ public sealed class UploadPathsTests
         => Assert.False(UploadPaths.HasMatchingMagic("<html>"u8, ".jpg"));
 
     [Fact]
+    public void ImageUrl_NullPath_FallsBackToCategoryPlate()
+    {
+        var item = new FridgeManager.Data.Entities.FoodItem
+        {
+            Category = FridgeManager.Data.Enums.FoodCategory.Snack,
+            ImagePath = null
+        };
+
+        Assert.Equal("/images/categories/snack.webp", FoodDisplay.ImageUrl(item));
+    }
+
+    [Fact]
     public void ImageUrl_UnsafePath_FallsBackToCategoryPlate()
     {
         var item = new FridgeManager.Data.Entities.FoodItem

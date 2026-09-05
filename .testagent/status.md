@@ -1,26 +1,23 @@
-# Phase 2 test status
+# Test quality review — reconciliation gaps
 
-12/12 tests passed: `dotnet test FridgeManager.slnx` → Failed: 0, Passed: 12.
+## Run
 
-## Checklist → tests
+`dotnet test tests/FridgeManager.Tests --nologo --no-restore`
 
-| Requirement | Evidence |
-|---|---|
-| CreateItem when user is at quota → Fail, message names the quota | `CreateItemAsync_WhenUserIsAtQuota_FailsAndNamesQuota` |
-| CreateItem when shelf lacks capacity → Fail, message names remaining units | `CreateItemAsync_WhenShelfLacksCapacity_FailsAndNamesRemainingUnits` |
-| CreateItem when both pass → Ok, item persisted as Active | `CreateItemAsync_WhenQuotaAndCapacityPass_PersistsActiveItem` |
-| ChangeStatus to Consumed → shelf usage decreases by SizeUnits | `ChangeStatusAsync_ToConsumed_DecreasesShelfUsageBySizeUnits` |
-| ChangeStatus to Consumed → user usage decreases by 1 | `ChangeStatusAsync_ToConsumed_DecreasesUserUsageByOne` |
-| UpdateItem by non-owner non-admin → Fail (forbidden) | `UpdateItemAsync_ByNonOwnerNonAdmin_FailsForbidden` |
-| UpdateItem by admin on another's item → Ok | `UpdateItemAsync_ByAdminOnAnothersItem_Succeeds` |
-| ChangeStatus by non-owner non-admin → Fail (forbidden) | `ChangeStatusAsync_ByNonOwnerNonAdmin_FailsForbidden` |
-| Edit re-check excludes own contribution | `UpdateItemAsync_WhenShelfIsFull_AllowsSameItemToKeepItsUnits` |
-| ExpiryState for yesterday → Expired | `Of_Yesterday_IsExpired` |
-| ExpiryState for today + 2 → ExpiringSoon | `Of_TodayPlusTwo_IsExpiringSoon` |
-| ExpiryState for today + 10 → Normal | `Of_TodayPlusTen_IsNormal` |
+Passed: 106, Failed: 0, Skipped: 0
 
 ## Assertion review
 
-Messages are checked for quota number / remaining units / shelf name, not merely `Success == false`. Persist tests re-query SQLite. Forbidden tests assert the row is unchanged. Capacity tests assert exact before/after usage (5→2 units, 1→0 items).
+New tests assert more than `Success`. Fail paths check the user-facing fragment (quota/capacity/size/shelf/sign-in) **and** that the row was not persisted or not mutated. Filter tests assert the name set **and** the matching field (`OwnerId`, `IsShared`, `Category`, `ShelfId`, `Status`). Dashboard asserts Active-only counts, utilisation arithmetic, member order/ids, Bob omitted, Alice at limit, Admin at zero usage.
 
-No gaps against the Phase 2 checklist. `SetQuota below current usage` remains Phase 3.
+Search uses substring `"iLk"` so a case-sensitive or `StartsWith` implementation would fail.
+
+## Gaps closed during review
+
+- `CreateItemAsync_WhenSizeIsNotOneToThree_Fails` is a `[Theory]` for size `0` and `4`.
+- `GetShelfRemainingAsync` split into unknown-shelf vs known-shelf so a `return 0` for every shelf would fail the known-shelf test.
+
+## Remaining (intentional)
+
+- List debounce / Clear-filters: UI, no bUnit in this repo.
+- `DashboardStats` type name still unpaired statically; behavior is covered via `CapacityService.GetDashboardStatsAsync`.

@@ -275,6 +275,227 @@ public sealed class InventoryServiceTests
     }
 
     [Fact]
+    public async Task GetItemsAsync_Search_MatchesNameCaseInsensitively()
+    {
+        using var host = new ServiceHost();
+
+        var items = await host.Inventory.GetItemsAsync(new FoodFilter { Search = "iLk" });
+
+        Assert.Equal(["Milk"], items.Select(i => i.Name).ToArray());
+    }
+
+    [Fact]
+    public async Task GetItemsAsync_MineOnly_ReturnsCurrentUsersItems()
+    {
+        using var host = new ServiceHost();
+
+        var items = await host.Inventory.GetItemsAsync(new FoodFilter
+        {
+            MineOnly = true,
+            CurrentUserId = host.Seed.AliceId
+        });
+
+        Assert.Equal(["Bread", "Juice"], items.Select(i => i.Name).ToArray());
+        Assert.All(items, i => Assert.Equal(host.Seed.AliceId, i.OwnerId));
+    }
+
+    [Fact]
+    public async Task GetItemsAsync_SharedOnly_ReturnsSharedItems()
+    {
+        using var host = new ServiceHost();
+        await using (var db = await host.Factory.CreateDbContextAsync())
+        {
+            (await db.FoodItems.SingleAsync(f => f.Id == host.Seed.BobsMilkId)).IsShared = true;
+            await db.SaveChangesAsync();
+        }
+
+        var items = await host.Inventory.GetItemsAsync(new FoodFilter { SharedOnly = true });
+
+        Assert.Equal(["Milk"], items.Select(i => i.Name).ToArray());
+        Assert.True(items[0].IsShared);
+    }
+
+    [Fact]
+    public async Task GetItemsAsync_Category_ReturnsMatchingCategory()
+    {
+        using var host = new ServiceHost();
+
+        var items = await host.Inventory.GetItemsAsync(new FoodFilter { Category = FoodCategory.Drink });
+
+        Assert.Equal(["Juice", "Milk"], items.Select(i => i.Name).ToArray());
+        Assert.All(items, i => Assert.Equal(FoodCategory.Drink, i.Category));
+    }
+
+    [Fact]
+    public async Task GetItemsAsync_ShelfId_ReturnsItemsOnThatShelf()
+    {
+        using var host = new ServiceHost();
+
+        var items = await host.Inventory.GetItemsAsync(new FoodFilter { ShelfId = host.Seed.ShelfAId });
+
+        Assert.Equal(["Juice", "Milk"], items.Select(i => i.Name).ToArray());
+        Assert.All(items, i => Assert.Equal(host.Seed.ShelfAId, i.ShelfId));
+    }
+
+    [Fact]
+    public async Task GetItemsAsync_StatusConsumed_ReturnsOnlyConsumed()
+    {
+        using var host = new ServiceHost();
+        await using (var db = await host.Factory.CreateDbContextAsync())
+        {
+            (await db.FoodItems.SingleAsync(f => f.Id == host.Seed.BobsMilkId)).Status = FoodStatus.Consumed;
+            await db.SaveChangesAsync();
+        }
+
+        var items = await host.Inventory.GetItemsAsync(new FoodFilter { Status = FoodStatus.Consumed });
+
+        Assert.Equal(["Milk"], items.Select(i => i.Name).ToArray());
+        Assert.Equal(FoodStatus.Consumed, items[0].Status);
+    }
+
+    [Fact]
+    public async Task GetItemsAsync_MineOnlyWithoutCurrentUserId_ReturnsEmpty()
+    {
+        using var host = new ServiceHost();
+
+        var items = await host.Inventory.GetItemsAsync(new FoodFilter { MineOnly = true });
+
+        Assert.Empty(items);
+    }
+
+    [Fact]
+    public async Task UpdateItemAsync_WhenIncreasingSizeBeyondRemaining_FailsAndNamesUnits()
+    {
+        using var host = new ServiceHost();
+        var form = ValidForm(host.Seed.ShelfAId, size: 3, name: "Juice");
+
+        var result = await host.Inventory.UpdateItemAsync(
+            host.Seed.AlicesJuiceId,
+            form,
+            Principals.For(host.Seed.AliceId));
+
+        Assert.False(result.Success);
+        Assert.Contains("Shelf A", result.Error);
+        Assert.Contains("2 units remaining", result.Error);
+        Assert.Contains("requires 3 units", result.Error);
+
+        await using var db = await host.Factory.CreateDbContextAsync();
+        var stored = await db.FoodItems.SingleAsync(f => f.Id == host.Seed.AlicesJuiceId);
+        Assert.Equal(2, stored.SizeUnits);
+        Assert.Equal("Juice", stored.Name);
+    }
+
+    [Fact]
+    public async Task UpdateItemAsync_WhenMovingToFullShelf_FailsAndNamesUnits()
+    {
+        using var host = new ServiceHost();
+        var form = ValidForm(host.Seed.ShelfAId, size: 1, name: "Bread");
+
+        var result = await host.Inventory.UpdateItemAsync(
+            host.Seed.AlicesBreadId,
+            form,
+            Principals.For(host.Seed.AliceId));
+
+        Assert.False(result.Success);
+        Assert.Contains("Shelf A", result.Error);
+        Assert.Contains("0 units remaining", result.Error);
+        Assert.Contains("requires 1 units", result.Error);
+
+        await using var db = await host.Factory.CreateDbContextAsync();
+        var stored = await db.FoodItems.SingleAsync(f => f.Id == host.Seed.AlicesBreadId);
+        Assert.Equal(host.Seed.ShelfBId, stored.ShelfId);
+    }
+
+    [Fact]
+    public async Task ChangeStatusAsync_ReactivateNonActive_Fails()
+    {
+        using var host = new ServiceHost();
+        var consumed = await host.Inventory.ChangeStatusAsync(
+            host.Seed.BobsMilkId,
+            FoodStatus.Consumed,
+            Principals.For(host.Seed.BobId));
+        Assert.True(consumed.Success);
+
+        var result = await host.Inventory.ChangeStatusAsync(
+            host.Seed.BobsMilkId,
+            FoodStatus.Active,
+            Principals.For(host.Seed.BobId));
+
+        Assert.False(result.Success);
+        Assert.Contains("reactivated", result.Error, StringComparison.OrdinalIgnoreCase);
+
+        await using var db = await host.Factory.CreateDbContextAsync();
+        var stored = await db.FoodItems.SingleAsync(f => f.Id == host.Seed.BobsMilkId);
+        Assert.Equal(FoodStatus.Consumed, stored.Status);
+    }
+
+    [Fact]
+    public async Task ChangeStatusAsync_ByAdminOnAnothersItem_Succeeds()
+    {
+        using var host = new ServiceHost();
+
+        var result = await host.Inventory.ChangeStatusAsync(
+            host.Seed.BobsMilkId,
+            FoodStatus.Missing,
+            Principals.For(host.Seed.AdminId, admin: true));
+
+        Assert.True(result.Success);
+
+        await using var db = await host.Factory.CreateDbContextAsync();
+        var stored = await db.FoodItems.SingleAsync(f => f.Id == host.Seed.BobsMilkId);
+        Assert.Equal(FoodStatus.Missing, stored.Status);
+        Assert.Equal(host.Seed.BobId, stored.OwnerId);
+    }
+
+    [Fact]
+    public async Task CreateItemAsync_WhenUnsignedIn_Fails()
+    {
+        using var host = new ServiceHost();
+        var form = ValidForm(host.Seed.ShelfBId, size: 1, name: "Ghost snack");
+
+        var result = await host.Inventory.CreateItemAsync(form, new System.Security.Claims.ClaimsPrincipal());
+
+        Assert.False(result.Success);
+        Assert.Contains("signed in", result.Error, StringComparison.OrdinalIgnoreCase);
+        Assert.Null(result.Value);
+
+        await using var db = await host.Factory.CreateDbContextAsync();
+        Assert.False(await db.FoodItems.AnyAsync(f => f.Name == "Ghost snack"));
+    }
+
+    [Fact]
+    public async Task CreateItemAsync_WhenShelfMissing_Fails()
+    {
+        using var host = new ServiceHost();
+        var form = ValidForm(shelfId: 9999, size: 1, name: "Lost tray");
+
+        var result = await host.Inventory.CreateItemAsync(form, Principals.For(host.Seed.BobId));
+
+        Assert.False(result.Success);
+        Assert.Contains("Shelf not found", result.Error);
+        Assert.Null(result.Value);
+    }
+
+    [Theory]
+    [InlineData(0)]
+    [InlineData(4)]
+    public async Task CreateItemAsync_WhenSizeIsNotOneToThree_Fails(int size)
+    {
+        using var host = new ServiceHost();
+        var name = $"Bad size {size}";
+        var form = ValidForm(host.Seed.ShelfBId, size, name);
+
+        var result = await host.Inventory.CreateItemAsync(form, Principals.For(host.Seed.BobId));
+
+        Assert.False(result.Success);
+        Assert.Contains("Size must be Small", result.Error);
+        Assert.Null(result.Value);
+
+        await using var db = await host.Factory.CreateDbContextAsync();
+        Assert.False(await db.FoodItems.AnyAsync(f => f.Name == name));
+    }
+
+    [Fact]
     public async Task CreateItemAsync_WhenNameExceeds200Characters_Fails()
     {
         using var host = new ServiceHost();

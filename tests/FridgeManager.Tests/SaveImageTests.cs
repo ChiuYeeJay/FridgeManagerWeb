@@ -24,6 +24,46 @@ public sealed class SaveImageTests
     }
 
     [Fact]
+    public async Task SaveImageAsync_Png_WritesGuidFilename()
+    {
+        using var host = new ServiceHost();
+        var file = new FakeBrowserFile("image/png", [0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A]);
+
+        var result = await host.Inventory.SaveImageAsync(file, Principals.For("user-1"));
+
+        Assert.True(result.Success);
+        Assert.NotNull(result.Value);
+        Assert.True(UploadPaths.IsSafeStoredPath(result.Value));
+        Assert.EndsWith(".png", result.Value);
+        Assert.True(File.Exists(Path.Combine(
+            host.Env.WebRootPath,
+            result.Value.TrimStart('/').Replace('/', Path.DirectorySeparatorChar))));
+    }
+
+    [Fact]
+    public async Task SaveImageAsync_Webp_WritesGuidFilename()
+    {
+        using var host = new ServiceHost();
+        byte[] bytes =
+        [
+            (byte)'R', (byte)'I', (byte)'F', (byte)'F',
+            0, 0, 0, 0,
+            (byte)'W', (byte)'E', (byte)'B', (byte)'P'
+        ];
+        var file = new FakeBrowserFile("image/webp", bytes);
+
+        var result = await host.Inventory.SaveImageAsync(file, Principals.For("user-1"));
+
+        Assert.True(result.Success);
+        Assert.NotNull(result.Value);
+        Assert.True(UploadPaths.IsSafeStoredPath(result.Value));
+        Assert.EndsWith(".webp", result.Value);
+        Assert.True(File.Exists(Path.Combine(
+            host.Env.WebRootPath,
+            result.Value.TrimStart('/').Replace('/', Path.DirectorySeparatorChar))));
+    }
+
+    [Fact]
     public async Task SaveImageAsync_UnsignedIn_Fails()
     {
         using var host = new ServiceHost();

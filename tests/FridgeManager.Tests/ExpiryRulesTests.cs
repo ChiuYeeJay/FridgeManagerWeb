@@ -18,4 +18,16 @@ public sealed class ExpiryRulesTests
     [Fact]
     public void Of_TodayPlusTen_IsNormal()
         => Assert.Equal(ExpiryState.Normal, ExpiryRules.Of(Today.AddDays(10), Today));
+
+    [Fact]
+    public void Of_Today_IsExpiringSoon()
+        => Assert.Equal(ExpiryState.ExpiringSoon, ExpiryRules.Of(Today, Today));
+
+    [Fact]
+    public void Of_TodayPlusThree_IsExpiringSoon()
+        => Assert.Equal(ExpiryState.ExpiringSoon, ExpiryRules.Of(Today.AddDays(3), Today));
+
+    [Fact]
+    public void Of_TodayPlusFour_IsNormal()
+        => Assert.Equal(ExpiryState.Normal, ExpiryRules.Of(Today.AddDays(4), Today));
 }

@@ -1,18 +1,43 @@
-# Test plan — Phase 2 services
+# Test plan — reconciliation gaps
 
-| Checklist item | Test |
+## Phase 1 — InventoryService
+
+| Checklist | Planned test |
 |---|---|
-| CreateItem when user is at quota → Fail, message names the quota | `CreateItemAsync_WhenUserIsAtQuota_FailsAndNamesQuota` |
-| CreateItem when shelf lacks capacity → Fail, message names remaining units | `CreateItemAsync_WhenShelfLacksCapacity_FailsAndNamesRemainingUnits` |
-| CreateItem when both pass → Ok, item persisted as Active | `CreateItemAsync_WhenQuotaAndCapacityPass_PersistsActiveItem` |
-| ChangeStatus to Consumed → shelf usage decreases by SizeUnits | `ChangeStatusAsync_ToConsumed_DecreasesShelfUsageBySizeUnits` |
-| ChangeStatus to Consumed → user usage decreases by 1 | `ChangeStatusAsync_ToConsumed_DecreasesUserUsageByOne` |
-| UpdateItem by non-owner non-admin → Fail (forbidden) | `UpdateItemAsync_ByNonOwnerNonAdmin_FailsForbidden` |
-| UpdateItem by admin on another's item → Ok | `UpdateItemAsync_ByAdminOnAnothersItem_Succeeds` |
-| ChangeStatus by non-owner non-admin → Fail (forbidden) | `ChangeStatusAsync_ByNonOwnerNonAdmin_FailsForbidden` |
-| Edit re-check excludes own contribution | `UpdateItemAsync_WhenShelfIsFull_AllowsSameItemToKeepItsUnits` |
-| ExpiryState for yesterday → Expired | `Of_Yesterday_IsExpired` |
-| ExpiryState for today + 2 → ExpiringSoon | `Of_TodayPlusTwo_IsExpiringSoon` |
-| ExpiryState for today + 10 → Normal | `Of_TodayPlusTen_IsNormal` |
+| Search filters in DB | `GetItemsAsync_Search_MatchesNameCaseInsensitively` |
+| Mine filters in DB | `GetItemsAsync_MineOnly_ReturnsCurrentUsersItems` |
+| Shared filters in DB | `GetItemsAsync_SharedOnly_ReturnsSharedItems` |
+| Category filters in DB | `GetItemsAsync_Category_ReturnsMatchingCategory` |
+| Shelf filters in DB | `GetItemsAsync_ShelfId_ReturnsItemsOnThatShelf` |
+| Status filters in DB | `GetItemsAsync_StatusConsumed_ReturnsOnlyConsumed` |
+| MineOnly without user | `GetItemsAsync_MineOnlyWithoutCurrentUserId_ReturnsEmpty` |
+| Update capacity (larger size) | `UpdateItemAsync_WhenIncreasingSizeBeyondRemaining_FailsAndNamesUnits` |
+| Update capacity (full shelf) | `UpdateItemAsync_WhenMovingToFullShelf_FailsAndNamesUnits` |
+| Reactivation | `ChangeStatusAsync_ReactivateNonActive_Fails` |
+| Admin status | `ChangeStatusAsync_ByAdminOnAnothersItem_Succeeds` |
+| Create unsigned | `CreateItemAsync_WhenUnsignedIn_Fails` |
+| Create missing shelf | `CreateItemAsync_WhenShelfMissing_Fails` |
+| Create invalid size | `CreateItemAsync_WhenSizeIsNotOneToThree_Fails` |
 
-Deferred: SetQuota below current usage (Phase 3, `IUserAdminService`).
+File: `tests/FridgeManager.Tests/InventoryServiceTests.cs`
+
+## Phase 2 — CapacityService
+
+| Checklist | Planned test |
+|---|---|
+| Shelf usage / remaining | `GetAllShelfUsageAsync_ReturnsUsedAndRemainingPerShelf`, `GetShelfRemainingAsync_UnknownShelf_ReturnsZero` |
+| Dashboard Active-only + utilisation + omit disabled | `GetDashboardStatsAsync_CountsActiveOnlyAndOmitsDisabledMembers` |
+
+File: `tests/FridgeManager.Tests/CapacityServiceTests.cs` (keep existing ChangeStatus usage tests)
+
+## Phase 3 — Expiry, display, images
+
+| Checklist | Planned test |
+|---|---|
+| today / +3 / +4 | `Of_Today_IsExpiringSoon`, `Of_TodayPlusThree_IsExpiringSoon`, `Of_TodayPlusFour_IsNormal` |
+| null ImagePath | `ImageUrl_NullPath_FallsBackToCategoryPlate` in `UploadPathsTests` |
+| PNG / WebP save | `SaveImageAsync_Png_WritesGuidFilename`, `SaveImageAsync_Webp_WritesGuidFilename` |
+
+## Blocked
+
+None. UI debounce / Clear-filters remain out of scope (no bUnit).
