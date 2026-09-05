@@ -1,6 +1,6 @@
 # Fridge Manager — Design
 
-Stable design for how [SPEC.md](SPEC.md) is applied. UI source: `ref/mockup/Fridge Manager Mockups.dc.html`. Accepted product decisions: [adr/](adr/).
+Stable design for how [SPEC.md](SPEC.md) is applied, including [SPEC_EXTENSIONS.md](SPEC_EXTENSIONS.md) after Phase 4. UI source: `ref/mockup/Fridge Manager Mockups.dc.html`. Accepted product decisions: [adr/](adr/).
 
 When behaviour still diverges from the spec, record it under [Deviations](#deviations-from-the-spec). Do not duplicate rules that already live in the spec.
 
@@ -17,7 +17,17 @@ IDbContextFactory     ← per-operation DbContext
 PostgreSQL
 ```
 
-Components never inject `AppDbContext`. Every service method that talks to EF opens a context with `await using var db = await _factory.CreateDbContextAsync()` and disposes it before returning. Identity still receives a scoped `AppDbContext` resolved from the same factory (`Program.cs`). `UserAdminService` also uses `UserManager<ApplicationUser>` for create, role assignment, and security-stamp updates.
+Startup (every environment, before `app.Run()`):
+
+```text
+IDbContextFactory → MigrateAsync
+        ↓
+StartupBootstrap (roles; first Admin from Seed:Admin*; optional DbSeeder when Seed:DemoData)
+        ↓
+Development only: DbSeeder.SeedDemoDataAsync
+```
+
+Components never inject `AppDbContext`. Every service method that talks to EF opens a context with `await using var db = await _factory.CreateDbContextAsync()` and disposes it before returning. Identity still receives a scoped `AppDbContext` resolved from the same factory (`Program.cs`). `UserAdminService` also uses `UserManager<ApplicationUser>` for create, role assignment, and security-stamp updates. `PersistKeysToDbContext` is Phase 6.
 
 Authorization is enforced in services (`UserClaims.CanModify`, `UserClaims.IsAdmin`). Pages may hide buttons with the same helpers; hiding UI is not the security boundary.
 
@@ -60,9 +70,11 @@ Expected rule violations never throw. They return `OperationResult` / `Operation
 | `Components/Account` | Template Identity pages; static SSR. Markup/styles may change; `[ExcludeFromInteractiveRouting]`, form POST handlers, and Identity services must not move out. |
 | `Services` | `InventoryService`, `CapacityService`, `UserAdminService`, `CapacityQueries`, `ExpiryRules`, `FoodDisplay`, `UserClaims`, `UploadPaths`, `LocalUrls`, `FoodListState`, `FoodSortPreference` |
 | `Services/Models` | Forms, filters, `FoodSort`, DTOs, `OperationResult` |
-| `Data` | `AppDbContext`, entities, enums, seeder, migrations |
+| `Data` | `AppDbContext`, `DbSeeder`, `StartupBootstrap`, `SeedOptions`, entities, enums, migrations |
+| `Dockerfile` / `.dockerignore` | Production image; publishes the root `FridgeManager.csproj` only |
+| `docker-compose.yml` | Local production container + Postgres (throw-away `Seed__*` values) |
 | `wwwroot/css/theme.css` | Mockup tokens and `fm-*` primitives |
-| `wwwroot/uploads` | User photos, gitignored |
+| `wwwroot/uploads` | User photos, gitignored; runtime files served with `UseStaticFiles` |
 | `tests/FridgeManager.Tests` | xUnit + EF Core SQLite `:memory:` |
 
 ## Guards (SPEC §6.3)
@@ -119,7 +131,7 @@ Filter state lives in the `/food?...` query string (`FoodFilter.ToQuery` / `From
 - File is written under `wwwroot/uploads/`; the database stores `/uploads/{guid}.ext`
 - `ImagePath` on create/update must be empty or that same `/uploads/{guid}.{jpg|png|webp}` shape (`UploadPaths.IsSafeStoredPath`)
 - If create/update fails after an upload, `FoodForm` calls `DeleteImageAsync` so the file is not left behind
-- `/uploads` is served only to authenticated users (`Program.cs`); responses get `X-Content-Type-Options: nosniff`
+- `/uploads` is served only to authenticated users (`Program.cs`); responses get `X-Content-Type-Options: nosniff`. Runtime files are served with `UseStaticFiles` on `/uploads` because `MapStaticAssets` only includes files known at publish time.
 
 `FoodForm` reads the chosen file into memory for preview, then calls `SaveImageAsync` on submit and sets `FoodItemForm.ImagePath`. Cards and detail resolve a safe `ImagePath` if present, otherwise `/images/categories/{category}.webp`.
 
@@ -135,7 +147,9 @@ Logout and Identity `ReturnUrl` values go through `LocalUrls.Sanitize` so only s
 
 ## Errors
 
-`Routes.razor` wraps the router in `ErrorBoundary`; fallback is `ErrorFallback` (generic copy, recover + dashboard). `/Error` and `/not-found` use the same `fm-*` language. Development sets `DetailedErrors: true` in `appsettings.Development.json` and on the Interactive Server circuit. Rule violations stay in `OperationResult.Error`. Unexpected exceptions are logged by the ASP.NET Core host / circuit; the fallback does not add its own logger.
+`Routes.razor` wraps the router in `ErrorBoundary`; fallback is `ErrorFallback` (generic copy, recover + dashboard). `/Error` and `/not-found` use the same `fm-*` language. Development sets `DetailedErrors: true` in `appsettings.Development.json` and on the Interactive Server circuit; Production leaves it off. Rule violations stay in `OperationResult.Error`. Unexpected exceptions are logged by the ASP.NET Core host / circuit; the fallback does not add its own logger.
+
+`Program.cs` calls `UseForwardedHeaders` first (`X-Forwarded-For` and `X-Forwarded-Proto`, known networks/proxies cleared) so Render’s TLS proxy is trusted. `UseHsts` runs outside Development. `UseHttpsRedirection` runs only in Development — redirecting inside the container behind the proxy would loop. `/health` is anonymous, returns plain `Healthy`, and does not check the database.
 
 ## UI conventions
 
@@ -157,7 +171,7 @@ Dashboard shelf remaining is the `FridgeElevation` chip row (chip flex grows wit
 
 `SqliteDbFactory` holds one open `Data Source=:memory:` connection and calls `EnsureCreated` once. Each inventory/capacity test seeds a small fridge (Shelf A at capacity 5, Alice at quota 2) so the guards are demonstrable without the production seeder.
 
-`UserAdminServiceTests` builds a real `UserManager` / `RoleManager` on that factory. `SaveImageTests` uses a temp `IWebHostEnvironment.WebRootPath` and a fake `IBrowserFile`. `UploadPaths` and `LocalUrls` are tested as pure helpers.
+`UserAdminServiceTests` and `StartupBootstrapTests` build a real `UserManager` / `RoleManager` on that factory. `SaveImageTests` uses a temp `IWebHostEnvironment.WebRootPath` and a fake `IBrowserFile`. `UploadPaths` and `LocalUrls` are tested as pure helpers.
 
 The SPEC §11 list is the minimum. Add a test in `tests/FridgeManager.Tests` whenever a service rule or filter changes.
 
@@ -168,7 +182,21 @@ Accepted product decisions now live in the spec and in [adr/](adr/). What remain
 - List Discard eligibility (`Active` ∧ expired ∧ `CanModify`) is computed in `FoodList`, not in a service. `ChangeStatusAsync` still enforces owner/admin; the expired-only restriction is card UX.
 - Identity template remnants stay reachable: passkey on Login, 2FA pages, Forgot password. External login signs in an already-linked account and never creates one.
 - Password reveal uses `wwwroot/js/password-toggle.js` on static Account pages and component state on AdminUsers.
+- `docker-compose.yml` mounts Postgres 18 data at `/var/lib/postgresql` (not `/var/lib/postgresql/data`). The official `postgres:18` image stores versioned cluster data under that parent directory.
+- Runtime uploads are served with `UseStaticFiles` for `/uploads` in addition to `MapStaticAssets`, so files written after publish are reachable. The auth/`nosniff` middleware still runs first.
+- SPEC_EXTENSIONS §6.5 clears `ForwardedHeadersOptions.KnownNetworks`; that property is obsolete in .NET 10, so `Program.cs` clears `KnownIPNetworks` instead (same intent: trust Render’s proxy).
+- The web project references `Microsoft.AspNetCore.App.Internal.Assets` (the SDK auto-reference is not enough in a clean Docker publish). The Dockerfile fails the build if `wwwroot/_framework/blazor.web.js` is missing, because Interactive Server with prerender off is a blank page without it.
 
 ## Known limitations (do not “fix”)
 
-Capacity check race, Interactive Server circuit affinity, local file storage, no audit trail, size units are approximate, orphan uploads, missing-file 404, disable delay up to 30 minutes, Identity template remnants. Listed in the [README](../README.md) and SPEC §13.
+Do not “fix”: capacity check race, single Interactive Server instance (no Redis / sticky-session scale-out), no audit trail, approximate size units, disable delay up to 30 minutes, Identity template remnants.
+
+SPEC_EXTENSIONS §0.1 overrides the former local-only uploads, orphan files on replacement, missing-file 404, `/uploads/{guid}.ext` path shape, local-demo-only, and “no AI” items. Those are in progress (R2 and ImageSharp in Phase 6, Gemini in Phase 7). Until then, Development and docker compose still use `wwwroot/uploads/`.
+
+Also accepted for the extension (SPEC_EXTENSIONS §9):
+
+- One application instance; horizontal scaling is not implemented.
+- Free Render web services spin down after inactivity and cold-start slowly; free Render PostgreSQL expires after 30 days.
+- R2 demo images will be publicly readable by URL (Phase 6).
+- Gemini is an external dependency; availability and quota may disable autofill (Phase 7).
+- AI recognition may be inaccurate and cannot invent expiration dates (Phase 7).

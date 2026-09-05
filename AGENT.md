@@ -1,8 +1,14 @@
 # AGENT.md — FridgeManager
 
 Guidance for coding agents working in this repository. Read this first, then
-`docs/SPEC.md` (the source of truth), `docs/DESIGN.md` (how the spec is
-applied), and `docs/adr/` (accepted product decisions).
+`docs/SPEC.md` (baseline source of truth), `docs/SPEC_EXTENSIONS.md` (post-core
+extensions; §0.1 overrides six SPEC §13 items; follow §12 when changing code),
+`docs/DESIGN.md` (how the specs are applied), and `docs/adr/` (accepted product
+decisions).
+
+The web project lives at the **repository root** (`FridgeManager.csproj`), not
+under a `FridgeManager/` subdirectory. SPEC_EXTENSIONS §2.1 names
+`FridgeManager/FridgeManager.csproj`; use the actual root path.
 
 ## What this is
 
@@ -17,11 +23,12 @@ placement, per-user item quotas and per-shelf capacity.
 | Auth | ASP.NET Core Identity with roles (`Admin`, `User`) |
 | Tests | xUnit, EF Core SQLite `:memory:` (`tests/FridgeManager.Tests`) |
 | Styling | `wwwroot/css/theme.css` (`fm-*` primitives); Bootstrap only for residual template widgets |
+| Deployment | Docker (non-root `app` user, port 8080) → Render Web Service + Render PostgreSQL; Cloudflare R2 (Phase 6); Gemini REST (Phase 7, no SDK) |
 
 ## Build, run, test
 
 ```bash
-# database (once)
+# database (once) — local Development
 docker run --name fridge-db -e POSTGRES_PASSWORD=devpassword -e POSTGRES_DB=fridge \
   -p 5432:5432 -d postgres:18
 
@@ -39,12 +46,21 @@ dotnet test tests/FridgeManager.Tests   # run after every service or filter chan
 
 # new migration
 dotnet ef migrations add <Name> --output-dir Data/Migrations
+
+# production image (offline interview demo; keep working after every later phase)
+docker build -t fridgemanager .
+docker compose up --build
+curl http://localhost:8080/health       # 200 Healthy
 ```
 
 Development seeds idempotently on startup (`Data/DbSeeder.cs`). Dev accounts:
 `admin@fridge.local`, `alice@`, `bob@`, `carol@fridge.local`, password
 `Passw0rd!`. One shelf is seeded near capacity and one user is at quota so the
 guards can be demonstrated without setup.
+
+`docker compose` is the offline fallback for the interview demo. When a phase
+changes Docker behaviour, run `docker build` and the compose verification, not
+only `dotnet test`.
 
 ## Non-negotiable conventions (SPEC §3 and §4)
 
@@ -57,7 +73,7 @@ These override any generic Blazor/EF advice. Violating them fails silently.
 2. **`Components/Account/**` stays static SSR.** Markup and `fm-*` styling may
    change; `[ExcludeFromInteractiveRouting]`, the form POST handlers and the
    Identity services must not move or change. Shared URL/path helpers may live
-   in `Services/`.
+   in `Services/`. **Do not modify this folder during the SPEC_EXTENSIONS work.**
 3. **DbContext only via `IDbContextFactory<AppDbContext>`.** Every service
    method: `await using var db = await _factory.CreateDbContextAsync();`.
    Never inject `AppDbContext` into a component, never hold one in a field.
@@ -85,21 +101,38 @@ Architecture rules:
   `Kind != Utc`). `ExpirationDate` is `DateOnly`. Enums persist as strings.
   `ExpiryState` is computed (`Services/ExpiryRules.cs`), never stored.
 
+## Extension conventions (SPEC_EXTENSIONS)
+
+- Production is a **single** application instance. Do not add Redis, distributed
+  SignalR, Kubernetes, message queues, or extra microservices.
+- Image processing: SixLabors.ImageSharp only. Do not add a second image
+  library or a Gemini SDK.
+- After changing `Program.cs` or `Components/App.razor`, re-check SPEC §3.
+- Configuration sections are `Seed`, `ImageStorage`, `R2`, and `Gemini`. Secrets
+  live in `dotnet user-secrets` (local) or Render environment variables
+  (production) — never in git.
+- At the end of every extension phase, update `DESIGN.md` (layers, folders,
+  deviations, known limitations). Do not edit `SPEC.md` unless asked.
+
 ## Where things live
 
 | Path | Role |
 |---|---|
+| `FridgeManager.csproj` | Web project (repository root) |
+| `Dockerfile` / `.dockerignore` | Production image; builds the web csproj only |
+| `docker-compose.yml` | Local production-container + Postgres demo |
 | `Components/Pages` | `Home.razor` (dashboard), `FoodList`, `FoodDetail`, `FoodForm` (+ `.razor.cs`), `AdminUsers` |
 | `Components/Shared` | `FoodCard`, `FoodFilterBar`, `FridgeElevation`, `ErrorFallback`, `PasswordRevealButton` |
-| `Components/Account` | Template Identity pages — see convention 2 |
+| `Components/Account` | Template Identity pages — see convention 2; do not change in the extension |
 | `Services` | `InventoryService`, `CapacityService`, `UserAdminService`, `CapacityQueries`, `ExpiryRules`, `FoodDisplay`, `UserClaims`, `UploadPaths`, `LocalUrls`, `FoodListState`, `FoodSortPreference` |
 | `Services/Models` | `FoodItemForm`, `FoodFilter`, `FoodSort`, `OperationResult`, `DashboardStats`, `*Dto` |
-| `Data` | `AppDbContext`, `DbSeeder`, `Entities/`, `Enums/`, `Migrations/` |
+| `Data` | `AppDbContext`, `DbSeeder`, `StartupBootstrap`, `SeedOptions`, `Entities/`, `Enums/`, `Migrations/` |
 | `wwwroot/css/theme.css` | Design tokens and `fm-*` classes from the mockup |
 | `wwwroot/images/categories` | Default plate per category (`{category}.webp`) |
-| `wwwroot/uploads` | User photos, gitignored |
+| `wwwroot/uploads` | User photos, gitignored; served at runtime via `UseStaticFiles` |
 | `ref/mockup` | UI source of truth (`Fridge Manager Mockups.dc.html`) |
 | `tests/FridgeManager.Tests` | `SqliteDbFactory`, `TestData`, `Principals`, service and filter tests |
+| `.github/workflows/ci.yml` | Planned in Phase 9 |
 
 ## Business rules to keep intact
 
@@ -116,11 +149,21 @@ Architecture rules:
 
 ## Project status and scope
 
-Phases 1–4 of SPEC §10 are done.
+SPEC §10 Phases 1–4 are done. Continue with SPEC_EXTENSIONS §10 Phases 5–9
+(currently Phase 5). Phase 10 starts only when explicitly requested.
 
-Do not implement SPEC §14 items (status history, AI autofill, announcements,
-placement recommendations, notifications, multi-fridge). Do not "fix" the
-known limitations in SPEC §13; they are documented in `README.md`.
+Out of scope (SPEC_EXTENSIONS §0.1): status history, expiry notifications,
+multiple images per food item, announcement board, placement recommendation,
+multi-refrigerator support. AI photo autofill is in scope for Phase 7, not
+before.
+
+SPEC_EXTENSIONS §0.1 overrides these former SPEC §13 limitations: local-only
+uploads, orphan files on replacement, missing-file 404, `/uploads/{guid}.ext`
+path shape, local-demo-only, and “no AI”. Do not treat those as frozen.
+
+Do not “fix” the remaining known limitations: capacity race, single Interactive
+Server instance, no audit trail, approximate size units, disable delay, Identity
+template remnants.
 
 ## Working conventions
 

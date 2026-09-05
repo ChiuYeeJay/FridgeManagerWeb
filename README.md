@@ -11,7 +11,7 @@ Internal tool. Do not expose it to the public internet.
 - ASP.NET Core Identity with roles (`Admin`, `User`)
 - UI: `wwwroot/css/theme.css` (`fm-*` primitives)
 
-Spec: [`docs/SPEC.md`](docs/SPEC.md). Design: [`docs/DESIGN.md`](docs/DESIGN.md). Decisions: [`docs/adr/`](docs/adr/).
+Spec: [`docs/SPEC.md`](docs/SPEC.md). Extensions: [`docs/SPEC_EXTENSIONS.md`](docs/SPEC_EXTENSIONS.md). Design: [`docs/DESIGN.md`](docs/DESIGN.md). Decisions: [`docs/adr/`](docs/adr/).
 
 ## Run locally
 
@@ -35,6 +35,33 @@ The app listens on http://localhost:5226 and https://localhost:7137. Development
 dotnet build FridgeManager.slnx
 dotnet test tests/FridgeManager.Tests
 ```
+
+## Run the production image locally (docker compose)
+
+Offline interview demo. Uses throw-away credentials only; keep this working after later phases.
+
+```bash
+docker compose up --build
+curl http://localhost:8080/health    # 200 Healthy
+```
+
+Then open http://localhost:8080.
+
+| Account | Password | Notes |
+|---|---|---|
+| `admin@example.com` | `LocalDev!Pass1` | Bootstrap admin from `Seed__Admin*` |
+| `admin@fridge.local`, `alice@`, `bob@`, `carol@fridge.local` | `Passw0rd!` | Demo users from `Seed__DemoData=true` (same set as Development) |
+
+`ImageStorage__Provider=Local` and `Gemini__Enabled=false` are set in compose. Do not put real production secrets in this file.
+
+## Migrations and first login
+
+On every startup the app applies pending EF Core migrations (`MigrateAsync` via `IDbContextFactory<AppDbContext>`), then runs `StartupBootstrap`:
+
+1. If no user is in the `Admin` role, it creates one from `Seed__AdminUserName`, `Seed__AdminEmail`, and `Seed__AdminPassword` (`EmailConfirmed`, `IsActive`, default quota). An existing Admin is never overwritten. In Production, missing `Seed__Admin*` values with no Admin yet fail startup.
+2. If `Seed__DemoData=true` and the database has no `FoodItem` rows, it loads the SPEC §9 demo set through `DbSeeder.SeedDemoDataAsync`. Existing items are left alone (restart does not duplicate).
+
+Development still seeds the four `@fridge.local` accounts even without those variables. Once an Admin exists in Production, the seed variables may be removed. Never log seed passwords.
 
 ## Dev accounts
 

@@ -9,16 +9,19 @@ public static class DbSeeder
 {
     public const string DevPassword = "Passw0rd!";
 
-    public static async Task SeedAsync(IServiceProvider services)
+    public static async Task EnsureRolesAsync(RoleManager<IdentityRole> roles)
+    {
+        await EnsureRoleAsync(roles, "Admin");
+        await EnsureRoleAsync(roles, "User");
+    }
+
+    public static async Task SeedDemoDataAsync(IServiceProvider services)
     {
         var db = services.GetRequiredService<AppDbContext>();
         var users = services.GetRequiredService<UserManager<ApplicationUser>>();
         var roles = services.GetRequiredService<RoleManager<IdentityRole>>();
 
-        await db.Database.MigrateAsync();
-
-        await EnsureRoleAsync(roles, "Admin");
-        await EnsureRoleAsync(roles, "User");
+        await EnsureRolesAsync(roles);
 
         var admin = await EnsureUserAsync(users, "admin@fridge.local", 5, "Admin");
         var alice = await EnsureUserAsync(users, "alice@fridge.local", 5, "User");
