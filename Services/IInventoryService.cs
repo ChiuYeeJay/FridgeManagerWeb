@@ -13,5 +13,6 @@ public interface IInventoryService
     Task<OperationResult<FoodItem>> CreateItemAsync(FoodItemForm form, ClaimsPrincipal user);
     Task<OperationResult> UpdateItemAsync(int id, FoodItemForm form, ClaimsPrincipal user);
     Task<OperationResult> ChangeStatusAsync(int id, FoodStatus status, ClaimsPrincipal user);
-    Task<OperationResult<string>> SaveImageAsync(IBrowserFile file);
+    Task<OperationResult<string>> SaveImageAsync(IBrowserFile file, ClaimsPrincipal user);
+    Task DeleteImageAsync(string? imagePath);
 }

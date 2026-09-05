@@ -287,6 +287,20 @@ public sealed class InventoryServiceTests
         Assert.Null(result.Value);
     }
 
+    [Fact]
+    public async Task CreateItemAsync_WhenImagePathIsNotAnUpload_Fails()
+    {
+        using var host = new ServiceHost();
+        var form = ValidForm(host.Seed.ShelfBId, size: 1, name: "Tracked juice");
+        form.ImagePath = "javascript:alert(1)";
+
+        var result = await host.Inventory.CreateItemAsync(form, Principals.For(host.Seed.BobId));
+
+        Assert.False(result.Success);
+        Assert.Contains("photo", result.Error, StringComparison.OrdinalIgnoreCase);
+        Assert.Null(result.Value);
+    }
+
     private static FoodItemForm ValidForm(int shelfId, int size, string name) => new()
     {
         Name = name,

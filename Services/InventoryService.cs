@@ -236,9 +236,15 @@ public class InventoryService(IDbContextFactory<AppDbContext> factory, IWebHostE
         return OperationResult.Ok();
     }
 
-    public async Task<OperationResult<string>> SaveImageAsync(IBrowserFile file)
+    public async Task<OperationResult<string>> SaveImageAsync(IBrowserFile file, ClaimsPrincipal user)
     {
         ArgumentNullException.ThrowIfNull(file);
+        ArgumentNullException.ThrowIfNull(user);
+
+        if (string.IsNullOrEmpty(UserClaims.GetUserId(user)))
+        {
+            return OperationResult<string>.Fail("You must be signed in to upload a photo.");
+        }
 
         if (!ImageExtensions.TryGetValue(file.ContentType ?? "", out var extension))
         {
@@ -250,16 +256,35 @@ public class InventoryService(IDbContextFactory<AppDbContext> factory, IWebHostE
             return OperationResult<string>.Fail("Could not save that photo.");
         }
 
-        var uploads = Path.Combine(env.WebRootPath, "uploads");
+        byte[] bytes;
+        try
+        {
+            await using var input = file.OpenReadStream(MaxImageBytes);
+            using var buffer = new MemoryStream();
+            await input.CopyToAsync(buffer);
+            bytes = buffer.ToArray();
+        }
+        catch (IOException)
+        {
+            return OperationResult<string>.Fail(
+                file.Size > MaxImageBytes
+                    ? "That file is larger than 5 MB."
+                    : "Could not save that photo.");
+        }
+
+        if (!UploadPaths.HasMatchingMagic(bytes, extension))
+        {
+            return OperationResult<string>.Fail("Use a JPG, PNG or WebP image.");
+        }
+
+        var uploads = Path.Combine(env.WebRootPath, UploadPaths.FolderName);
         Directory.CreateDirectory(uploads);
         var fileName = $"{Guid.NewGuid():N}{extension}";
         var physicalPath = Path.Combine(uploads, fileName);
 
         try
         {
-            await using var input = file.OpenReadStream(MaxImageBytes);
-            await using var output = File.Create(physicalPath);
-            await input.CopyToAsync(output);
+            await File.WriteAllBytesAsync(physicalPath, bytes);
         }
         catch (IOException)
         {
@@ -268,13 +293,26 @@ public class InventoryService(IDbContextFactory<AppDbContext> factory, IWebHostE
                 File.Delete(physicalPath);
             }
 
-            return OperationResult<string>.Fail(
-                file.Size > MaxImageBytes
-                    ? "That file is larger than 5 MB."
-                    : "Could not save that photo.");
+            return OperationResult<string>.Fail("Could not save that photo.");
         }
 
-        return OperationResult<string>.Ok($"/uploads/{fileName}");
+        return OperationResult<string>.Ok($"{UploadPaths.UrlPrefix}{fileName}");
+    }
+
+    public Task DeleteImageAsync(string? imagePath)
+    {
+        if (!UploadPaths.IsSafeStoredPath(imagePath) || string.IsNullOrWhiteSpace(env.WebRootPath))
+        {
+            return Task.CompletedTask;
+        }
+
+        var physicalPath = Path.Combine(env.WebRootPath, UploadPaths.FolderName, Path.GetFileName(imagePath!));
+        if (File.Exists(physicalPath))
+        {
+            File.Delete(physicalPath);
+        }
+
+        return Task.CompletedTask;
     }
 
     private static IQueryable<FoodItem> ApplySort(IQueryable<FoodItem> query, FoodFilter filter)
@@ -320,6 +358,11 @@ public class InventoryService(IDbContextFactory<AppDbContext> factory, IWebHostE
         if (form.ShelfId < 1)
         {
             return "Choose a shelf.";
+        }
+
+        if (!string.IsNullOrEmpty(form.ImagePath) && !UploadPaths.IsSafeStoredPath(form.ImagePath))
+        {
+            return "That photo could not be used.";
         }
 
         return null;

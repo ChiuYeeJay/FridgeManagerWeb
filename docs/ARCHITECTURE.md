@@ -25,7 +25,7 @@ Authorization is enforced in services (`UserClaims.CanModify`, `UserClaims.IsAdm
 
 ```text
 FoodForm.razor
-  → optional InventoryService.SaveImageAsync(IBrowserFile)
+  → optional InventoryService.SaveImageAsync(IBrowserFile, ClaimsPrincipal)
   → InventoryService.CreateItemAsync(form, ClaimsPrincipal)
       → owner from NameIdentifier
       → UserUsage < ItemQuota
@@ -105,14 +105,19 @@ Filter state lives in the `/food?...` query string (`FoodFilter.ToQuery` / `From
 
 ## Image upload (§8.6)
 
-`InventoryService.SaveImageAsync` accepts a single `IBrowserFile`:
+`InventoryService.SaveImageAsync` accepts a single `IBrowserFile` and a signed-in `ClaimsPrincipal`:
 
+- Caller must have a `NameIdentifier`
 - Content type must be `image/jpeg`, `image/png`, or `image/webp`
+- File bytes must match that type’s magic header
 - Size cap `OpenReadStream(5 * 1024 * 1024)`
 - Filename is `Guid.NewGuid("N")` plus a server-chosen extension; the client name is discarded
 - File is written under `wwwroot/uploads/`; the database stores `/uploads/{guid}.ext`
+- `ImagePath` on create/update must be empty or that same `/uploads/{guid}.{jpg|png|webp}` shape
+- If create/update fails after an upload, `FoodForm` calls `DeleteImageAsync` so the file is not left behind
+- `/uploads` is served only to authenticated users (`Program.cs`); responses get `X-Content-Type-Options: nosniff`
 
-`FoodForm` reads the chosen file into memory for preview, then calls `SaveImageAsync` on submit and sets `FoodItemForm.ImagePath`. Cards and detail resolve `ImagePath` if present, otherwise `/images/categories/{category}.webp`.
+`FoodForm` reads the chosen file into memory for preview, then calls `SaveImageAsync` on submit and sets `FoodItemForm.ImagePath`. Cards and detail resolve a safe `ImagePath` if present, otherwise `/images/categories/{category}.webp`.
 
 ## DTOs
 
@@ -156,7 +161,9 @@ Owner is shown as a chip on the card plate (`You` when the viewer owns the item)
 - `GetUsersAsync` returns `AdminUserDto`, not `List<ApplicationUser>`.
 - Item-count line on the list is `{matched} of {active} active items` (or `{n} items` when Status is not Active).
 - Account Identity markup uses `fm-*` styles; render mode and POST handlers stay in place. Login is email-only (`[EmailAddress]`). Username remains unique in Identity and is the display name; it is not a sign-in identifier.
-- Login does not offer Register, resend-confirmation, or external login; members are created by an admin. Those template pages remain reachable by URL.
+- Login does not offer Register, resend-confirmation, or external login; members are created by an admin. `/Account/Register` and `/Account/RegisterConfirmation` redirect to login and never create a user or show a confirmation link. External login signs in an existing linked account only.
+- `SaveImageAsync` takes `ClaimsPrincipal` (spec snippet omitted it; §3.4 and §4 require authorization in the service).
+- Password sign-in uses `lockoutOnFailure: true` (5 failures, 15 minutes). Account self-delete is disabled.
 - Password fields on Login, Change password, and Add a member have a reveal toggle. Account pages are static SSR, so the toggle is `wwwroot/js/password-toggle.js`; AdminUsers uses component state.
 
 ## Known limitations (do not “fix”)

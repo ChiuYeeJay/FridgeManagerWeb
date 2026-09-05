@@ -10,6 +10,7 @@ using Microsoft.Extensions.Primitives;
 using FridgeManager.Components.Account.Pages;
 using FridgeManager.Components.Account.Pages.Manage;
 using FridgeManager.Data;
+using FridgeManager.Services;
 
 namespace Microsoft.AspNetCore.Routing;
 
@@ -47,7 +48,8 @@ internal static class IdentityComponentsEndpointRouteBuilderExtensions
             [FromForm] string returnUrl) =>
         {
             await signInManager.SignOutAsync();
-            return TypedResults.LocalRedirect($"~/{returnUrl}");
+            var local = LocalUrls.Sanitize(returnUrl);
+            return TypedResults.LocalRedirect(string.IsNullOrEmpty(local) ? "~/" : $"~/{local.TrimStart('/')}");
         });
 
         accountGroup.MapPost("/PasskeyCreationOptions", async (

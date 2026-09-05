@@ -1,6 +1,7 @@
 using Microsoft.AspNetCore.Components;
 using Microsoft.AspNetCore.Identity;
 using FridgeManager.Data;
+using FridgeManager.Services;
 
 namespace FridgeManager.Components.Account;
 
@@ -20,12 +21,19 @@ internal sealed class IdentityRedirectManager(NavigationManager navigationManage
     {
         uri ??= "";
 
-        // Prevent open redirects.
-        if (!Uri.IsWellFormedUriString(uri, UriKind.Relative))
+        if (!string.IsNullOrEmpty(uri) && !Uri.IsWellFormedUriString(uri, UriKind.Relative))
         {
-            uri = navigationManager.ToBaseRelativePath(uri);
+            try
+            {
+                uri = navigationManager.ToBaseRelativePath(uri);
+            }
+            catch (ArgumentException)
+            {
+                uri = "";
+            }
         }
 
+        uri = LocalUrls.Sanitize(uri);
         navigationManager.NavigateTo(uri);
     }
 
@@ -50,5 +58,8 @@ internal sealed class IdentityRedirectManager(NavigationManager navigationManage
         => RedirectToWithStatus(CurrentPath, message, context);
 
     public void RedirectToInvalidUser(UserManager<ApplicationUser> userManager, HttpContext context)
-        => RedirectToWithStatus("Account/InvalidUser", $"Error: Unable to load user with ID '{userManager.GetUserId(context.User)}'.", context);
+    {
+        _ = userManager;
+        RedirectToWithStatus("Account/InvalidUser", "Error: Unable to load your account.", context);
+    }
 }

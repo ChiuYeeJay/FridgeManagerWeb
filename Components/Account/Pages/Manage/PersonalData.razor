@@ -11,14 +11,12 @@
 <StatusMessage />
 <h3>Personal Data</h3>
 
-<p class="fm-help">Your account contains personal data that you have given us. This page allows you to download or delete that data.</p>
-<p class="fm-help"><strong>Deleting this data will permanently remove your account, and this cannot be recovered.</strong></p>
+<p class="fm-help">Your account contains personal data that you have given us. This page lets you download a copy. Accounts are never deleted; ask an administrator to disable your account if you need to leave.</p>
 <div class="fm-stack" style="flex-direction:row;flex-wrap:wrap">
     <form action="Account/Manage/DownloadPersonalData" method="post">
         <AntiforgeryToken />
         <button class="fm-btn fm-btn-secondary" type="submit">Download</button>
     </form>
-    <a href="Account/Manage/DeletePersonalData" class="fm-btn fm-btn-danger">Delete</a>
 </div>
 
 @code {

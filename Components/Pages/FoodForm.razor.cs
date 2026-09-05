@@ -50,7 +50,7 @@ public partial class FoodForm
 
     private string? PhotoSrc
         => _previewUrl
-           ?? (string.IsNullOrEmpty(Form.ImagePath) ? null : Form.ImagePath);
+           ?? (UploadPaths.IsSafeStoredPath(Form.ImagePath) ? Form.ImagePath : null);
 
     private string CancelHref => IsEdit ? $"food/{Id}" : ListState.LastListUrl;
 
@@ -260,9 +260,10 @@ public partial class FoodForm
         _error = null;
         try
         {
+            string? uploadedPath = null;
             if (_pendingFile is not null)
             {
-                var uploaded = await Inventory.SaveImageAsync(_pendingFile);
+                var uploaded = await Inventory.SaveImageAsync(_pendingFile, _user);
                 if (!uploaded.Success || uploaded.Value is null)
                 {
                     _error = uploaded.Error;
@@ -270,7 +271,8 @@ public partial class FoodForm
                     return;
                 }
 
-                Form.ImagePath = uploaded.Value;
+                uploadedPath = uploaded.Value;
+                Form.ImagePath = uploadedPath;
                 _pendingFile = null;
             }
 
@@ -280,6 +282,7 @@ public partial class FoodForm
                 if (!result.Success)
                 {
                     _error = result.Error;
+                    await Inventory.DeleteImageAsync(uploadedPath);
                     await RefreshCapacityAsync();
                     return;
                 }
@@ -292,6 +295,7 @@ public partial class FoodForm
             if (!created.Success || created.Value is null)
             {
                 _error = created.Error;
+                await Inventory.DeleteImageAsync(uploadedPath);
                 await RefreshCapacityAsync();
                 return;
             }

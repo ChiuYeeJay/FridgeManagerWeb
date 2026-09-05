@@ -47,7 +47,7 @@ Password for all seeded users: `Passw0rd!`
 | `bob@fridge.local` | User | 8 |
 | `carol@fridge.local` | User | 3 (at limit) |
 
-One shelf is seeded near capacity and Carol sits at quota so the create guards can be demonstrated without setup. Admins manage members at `/admin/users`. The template Identity register page still exists; prefer creating accounts from the admin page.
+One shelf is seeded near capacity and Carol sits at quota so the create guards can be demonstrated without setup. Admins manage members at `/admin/users`. `/Account/Register` redirects to login; only an administrator can create accounts.
 
 ## Known limitations
 
