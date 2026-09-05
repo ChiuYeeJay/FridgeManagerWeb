@@ -561,7 +561,8 @@ Run on startup in development, idempotently.
 
 - 1 refrigerator, 4 shelves with differing `CapacityUnits` (e.g. 20, 20, 15, 10)
 - Roles: `Admin`, `User`
-- 1 admin (`admin@fridge.local`), 3 users with quotas 5, 8, 3
+- 1 admin (`admin@fridge.local`), 3 users with quotas 10, 8, 3
+- `UserName` is the email local-part (`alice`, not `alice@fridge.local`)
 - 25–30 food items spanning every category and status, deliberately including:
   - at least 2 already expired
   - at least 3 expiring within 3 days

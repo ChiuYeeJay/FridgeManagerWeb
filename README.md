@@ -49,8 +49,7 @@ Then open http://localhost:8080.
 
 | Account | Password | Notes |
 |---|---|---|
-| `admin@example.com` | `LocalDev!Pass1` | Bootstrap admin from `Seed__Admin*` |
-| `admin@fridge.local`, `alice@`, `bob@`, `carol@fridge.local` | `Passw0rd!` | Demo users from `Seed__DemoData=true` (same set as Development) |
+| `admin@fridge.local`, `alice@`, `bob@`, `carol@fridge.local` | `Passw0rd!` | Bootstrap admin is `admin@fridge.local` (`Seed__Admin*`); the same demo set as Development |
 
 `ImageStorage__Provider=Local` and `Gemini__Enabled=false` are set in compose. Do not put real production secrets in this file.
 
@@ -67,12 +66,12 @@ Development still seeds the four `@fridge.local` accounts even without those var
 
 Password for all seeded users: `Passw0rd!`
 
-| Email | Role | Quota |
-|---|---|---|
-| `admin@fridge.local` | Admin | 5 |
-| `alice@fridge.local` | User | 5 |
-| `bob@fridge.local` | User | 8 |
-| `carol@fridge.local` | User | 3 (at limit) |
+| Email | Username | Role | Quota |
+|---|---|---|---|
+| `admin@fridge.local` | `admin` | Admin | 5 |
+| `alice@fridge.local` | `alice` | User | 10 |
+| `bob@fridge.local` | `bob` | User | 8 |
+| `carol@fridge.local` | `carol` | User | 3 (at limit) |
 
 One shelf is seeded near capacity and Carol sits at quota so the create guards can be demonstrated without setup. Admins manage members at `/admin/users`. `/Account/Register` redirects to login; only an administrator can create accounts.
 

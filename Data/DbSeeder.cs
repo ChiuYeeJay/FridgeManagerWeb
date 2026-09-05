@@ -22,11 +22,12 @@ public static class DbSeeder
         var roles = services.GetRequiredService<RoleManager<IdentityRole>>();
 
         await EnsureRolesAsync(roles);
+        await RemoveLegacyExampleAdminAsync(users, db);
 
-        var admin = await EnsureUserAsync(users, "admin@fridge.local", 5, "Admin");
-        var alice = await EnsureUserAsync(users, "alice@fridge.local", 5, "User");
-        var bob = await EnsureUserAsync(users, "bob@fridge.local", 8, "User");
-        var carol = await EnsureUserAsync(users, "carol@fridge.local", 3, "User");
+        var admin = await EnsureUserAsync(users, "admin", "admin@fridge.local", 5, "Admin");
+        var alice = await EnsureUserAsync(users, "alice", "alice@fridge.local", 10, "User");
+        var bob = await EnsureUserAsync(users, "bob", "bob@fridge.local", 8, "User");
+        var carol = await EnsureUserAsync(users, "carol", "carol@fridge.local", 3, "User");
 
         var fridge = await db.Refrigerators.Include(r => r.Shelves).FirstOrDefaultAsync();
         if (fridge is null)
@@ -140,8 +141,32 @@ public static class DbSeeder
         }
     }
 
+    private static async Task RemoveLegacyExampleAdminAsync(
+        UserManager<ApplicationUser> users,
+        AppDbContext db)
+    {
+        var leftover = await users.FindByEmailAsync("admin@example.com");
+        if (leftover is null)
+        {
+            return;
+        }
+
+        if (await db.FoodItems.AnyAsync(f => f.OwnerId == leftover.Id))
+        {
+            return;
+        }
+
+        var deleted = await users.DeleteAsync(leftover);
+        if (!deleted.Succeeded)
+        {
+            throw new InvalidOperationException(
+                $"Failed to remove leftover admin 'admin@example.com': {FormatErrors(deleted)}");
+        }
+    }
+
     private static async Task<ApplicationUser> EnsureUserAsync(
         UserManager<ApplicationUser> users,
+        string userName,
         string email,
         int quota,
         string role)
@@ -151,7 +176,7 @@ public static class DbSeeder
         {
             user = new ApplicationUser
             {
-                UserName = email,
+                UserName = userName,
                 Email = email,
                 EmailConfirmed = true,
                 ItemQuota = quota,
@@ -161,6 +186,33 @@ public static class DbSeeder
             if (!created.Succeeded)
             {
                 throw new InvalidOperationException($"Failed to create user '{email}': {FormatErrors(created)}");
+            }
+        }
+        else
+        {
+            if (!string.Equals(user.UserName, userName, StringComparison.Ordinal))
+            {
+                var occupant = await users.FindByNameAsync(userName);
+                if (occupant is null || occupant.Id == user.Id)
+                {
+                    var renamed = await users.SetUserNameAsync(user, userName);
+                    if (!renamed.Succeeded)
+                    {
+                        throw new InvalidOperationException(
+                            $"Failed to set username '{userName}' for '{email}': {FormatErrors(renamed)}");
+                    }
+                }
+            }
+
+            if (user.ItemQuota != quota)
+            {
+                user.ItemQuota = quota;
+                var updated = await users.UpdateAsync(user);
+                if (!updated.Succeeded)
+                {
+                    throw new InvalidOperationException(
+                        $"Failed to set quota for '{email}': {FormatErrors(updated)}");
+                }
             }
         }
 

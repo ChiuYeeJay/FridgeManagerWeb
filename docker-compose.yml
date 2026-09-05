@@ -28,8 +28,8 @@ services:
       ImageStorage__Provider: Local
       Gemini__Enabled: "false"
       Seed__AdminUserName: admin
-      Seed__AdminEmail: admin@example.com
-      Seed__AdminPassword: LocalDev!Pass1
+      Seed__AdminEmail: admin@fridge.local
+      Seed__AdminPassword: Passw0rd!
       Seed__DemoData: "true"
 
 volumes:

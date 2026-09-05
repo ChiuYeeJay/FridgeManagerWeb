@@ -155,8 +155,60 @@ public sealed class StartupBootstrapTests
         var itemCount = await db.FoodItems.CountAsync();
         Assert.InRange(itemCount, 25, 30);
         Assert.Equal(4, await db.Shelves.CountAsync());
-        Assert.NotNull(await host.Users.FindByEmailAsync("alice@fridge.local"));
+
+        var alice = await host.Users.FindByEmailAsync("alice@fridge.local");
+        Assert.NotNull(alice);
+        Assert.Equal("alice", alice.UserName);
+        Assert.Equal(10, alice.ItemQuota);
+
+        var fridgeAdmin = await host.Users.FindByEmailAsync("admin@fridge.local");
+        Assert.NotNull(fridgeAdmin);
+        Assert.Equal("admin", fridgeAdmin.UserName);
+
         Assert.NotNull(await host.Users.FindByEmailAsync("bootstrap@example.com"));
+        Assert.Null(await host.Users.FindByEmailAsync("admin@example.com"));
+    }
+
+    [Fact]
+    public async Task SeedDemoData_RemovesLeftoverExampleAdmin_AndShortensExistingUserNames()
+    {
+        using var host = BootstrapHost.Empty(_ => { });
+        await host.Roles.CreateAsync(new IdentityRole("Admin"));
+        await host.Roles.CreateAsync(new IdentityRole("User"));
+
+        var leftover = new ApplicationUser
+        {
+            UserName = "admin",
+            Email = "admin@example.com",
+            EmailConfirmed = true,
+            IsActive = true
+        };
+        Assert.True((await host.Users.CreateAsync(leftover, BootstrapPassword)).Succeeded);
+        await host.Users.AddToRoleAsync(leftover, "Admin");
+
+        var alice = new ApplicationUser
+        {
+            UserName = "alice@fridge.local",
+            Email = "alice@fridge.local",
+            EmailConfirmed = true,
+            IsActive = true,
+            ItemQuota = 5
+        };
+        Assert.True((await host.Users.CreateAsync(alice, BootstrapPassword)).Succeeded);
+        await host.Users.AddToRoleAsync(alice, "User");
+
+        await DbSeeder.SeedDemoDataAsync(host.Services);
+
+        Assert.Null(await host.Users.FindByEmailAsync("admin@example.com"));
+
+        var fridgeAdmin = await host.Users.FindByEmailAsync("admin@fridge.local");
+        Assert.NotNull(fridgeAdmin);
+        Assert.Equal("admin", fridgeAdmin.UserName);
+
+        var updatedAlice = await host.Users.FindByEmailAsync("alice@fridge.local");
+        Assert.NotNull(updatedAlice);
+        Assert.Equal("alice", updatedAlice.UserName);
+        Assert.Equal(10, updatedAlice.ItemQuota);
     }
 
     private static async Task<int> CountItemsAsync(BootstrapHost host)

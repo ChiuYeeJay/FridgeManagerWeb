@@ -15,4 +15,4 @@ ASP.NET Core Identity signs in with `UserName`. The template login field is ofte
 
 ## Consequences
 
-A member cannot sign in with their username if it differs from their email. Seeded users keep `UserName == Email` (`alice@fridge.local`); later members may not. Display code strips `@domain` when the stored username still looks like an email (`FoodDisplay.OwnerLabel`).
+A member cannot sign in with their username if it differs from their email. Seeded users store the email local-part as `UserName` (`alice`, not `alice@fridge.local`). Display code still strips `@domain` when a stored username looks like an email (`FoodDisplay.OwnerLabel`).
