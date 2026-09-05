@@ -11,7 +11,7 @@ Internal tool. Do not expose it to the public internet.
 - ASP.NET Core Identity with roles (`Admin`, `User`)
 - UI: `wwwroot/css/theme.css` (`fm-*` primitives)
 
-Spec: [`docs/SPEC_v3.md`](docs/SPEC_v3.md). How it is built: [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md).
+Spec: [`docs/SPEC.md`](docs/SPEC.md). Design: [`docs/DESIGN.md`](docs/DESIGN.md). Decisions: [`docs/adr/`](docs/adr/).
 
 ## Run locally
 
@@ -58,6 +58,9 @@ These are accepted. Do not “fix” them in this codebase.
 3. **Local file storage.** Uploaded images live in `wwwroot/uploads/` and do not survive redeployment or scale-out.
 4. **No audit trail.** Status changes are not recorded historically.
 5. **Size units are an approximation** and do not reflect real volume.
+6. **Orphan uploads / missing files.** Replacing a photo does not delete the previous file. A safe `ImagePath` whose file is gone 404s instead of falling back to the category plate.
+7. **Disable delay.** After an admin disables a member, an existing circuit may last until security-stamp revalidation (up to 30 minutes). New logins are blocked immediately.
+8. **Identity template remnants.** Passkey, 2FA, and Forgot-password pages from the template may remain. External login does not create accounts.
 
 ## Out of scope
 

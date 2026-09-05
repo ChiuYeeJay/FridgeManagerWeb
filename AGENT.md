@@ -1,8 +1,8 @@
 # AGENT.md — FridgeManager
 
 Guidance for coding agents working in this repository. Read this first, then
-`docs/SPEC_v3.md` (the source of truth) and `docs/ARCHITECTURE.md` (how the
-spec is actually implemented so far).
+`docs/SPEC.md` (the source of truth), `docs/DESIGN.md` (how the spec is
+applied), and `docs/adr/` (accepted product decisions).
 
 ## What this is
 
@@ -50,13 +50,14 @@ guards can be demonstrated without setup.
 
 These override any generic Blazor/EF advice. Violating them fails silently.
 
-1. **Render mode** is set once in `Components/App.razor`
-   (`InteractiveServerRenderMode(prerender: false)` on `HeadOutlet` and
-   `Routes`). Never add `@rendermode` anywhere else. No `InteractiveAuto`,
-   no WebAssembly.
+1. **Render mode** is chosen in `Components/App.razor` via
+   `AcceptsInteractiveRouting()` → `InteractiveServerRenderMode(prerender: false)`,
+   otherwise `null` so Account stays static SSR. Never add `@rendermode`
+   anywhere else. No `InteractiveAuto`, no WebAssembly.
 2. **`Components/Account/**` stays static SSR.** Markup and `fm-*` styling may
    change; `[ExcludeFromInteractiveRouting]`, the form POST handlers and the
-   Identity services must not move or change.
+   Identity services must not move or change. Shared URL/path helpers may live
+   in `Services/`.
 3. **DbContext only via `IDbContextFactory<AppDbContext>`.** Every service
    method: `await using var db = await _factory.CreateDbContextAsync();`.
    Never inject `AppDbContext` into a component, never hold one in a field.
@@ -89,9 +90,9 @@ Architecture rules:
 | Path | Role |
 |---|---|
 | `Components/Pages` | `Home.razor` (dashboard), `FoodList`, `FoodDetail`, `FoodForm` (+ `.razor.cs`), `AdminUsers` |
-| `Components/Shared` | `FoodCard`, `FoodFilterBar`, `FridgeElevation`, `ErrorFallback` |
+| `Components/Shared` | `FoodCard`, `FoodFilterBar`, `FridgeElevation`, `ErrorFallback`, `PasswordRevealButton` |
 | `Components/Account` | Template Identity pages — see convention 2 |
-| `Services` | `InventoryService`, `CapacityService`, `UserAdminService`, `CapacityQueries`, `ExpiryRules`, `FoodDisplay`, `UserClaims`, `FoodListState`, `FoodSortPreference` |
+| `Services` | `InventoryService`, `CapacityService`, `UserAdminService`, `CapacityQueries`, `ExpiryRules`, `FoodDisplay`, `UserClaims`, `UploadPaths`, `LocalUrls`, `FoodListState`, `FoodSortPreference` |
 | `Services/Models` | `FoodItemForm`, `FoodFilter`, `FoodSort`, `OperationResult`, `DashboardStats`, `*Dto` |
 | `Data` | `AppDbContext`, `DbSeeder`, `Entities/`, `Enums/`, `Migrations/` |
 | `wwwroot/css/theme.css` | Design tokens and `fm-*` classes from the mockup |
@@ -104,7 +105,7 @@ Architecture rules:
 
 - Only `Status == Active` items consume shelf capacity or user quota.
 - Create: quota guard **and** capacity guard, each with the exact message
-  format in SPEC §6.3 / ARCHITECTURE "Guards".
+  format in SPEC §6.3 / DESIGN "Guards".
 - Edit: re-check capacity only if the item is Active and `ShelfId` or
   `SizeUnits` changed, excluding the item's own units. Quota is not
   re-checked on edit.
@@ -119,9 +120,7 @@ Phases 1–4 of SPEC §10 are done.
 
 Do not implement SPEC §14 items (status history, AI autofill, announcements,
 placement recommendations, notifications, multi-fridge). Do not "fix" the
-known limitations in SPEC §13 (capacity race, circuit affinity, local file
-storage, no audit trail, approximate size units); they are documented in
-`README.md`.
+known limitations in SPEC §13; they are documented in `README.md`.
 
 ## Working conventions
 
@@ -130,9 +129,8 @@ storage, no audit trail, approximate size units); they are documented in
   filter changes; the SPEC §11 list is the minimum coverage.
 - Prefer editing existing components/services over adding new files. New UI
   uses `fm-*` classes from `theme.css`, not Bootstrap utilities.
-- When behaviour deviates from the spec, record it in
-  `docs/ARCHITECTURE.md` under Deviations. Do not edit `docs/SPEC_v3.md` unless
-  asked.
+- When behaviour deviates from the spec, record it in `docs/DESIGN.md` under
+  Deviations. Do not edit `docs/SPEC.md` unless asked.
 - Never commit secrets. The connection string is in `dotnet user-secrets`.
 - `wwwroot/uploads/*`, `bin/` and `obj/` are gitignored; keep them that way.
 - Do not commit unless explicitly asked.

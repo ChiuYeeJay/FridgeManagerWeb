@@ -1,6 +1,8 @@
-# Fridge Manager — Architecture
+# Fridge Manager — Design
 
-Implementation notes after Phase 3 and 4. Spec: [SPEC_v3.md](SPEC_v3.md). UI source: `ref/mockup/Fridge Manager Mockups.dc.html`.
+Stable design for how [SPEC.md](SPEC.md) is applied. UI source: `ref/mockup/Fridge Manager Mockups.dc.html`. Accepted product decisions: [adr/](adr/).
+
+When behaviour still diverges from the spec, record it under [Deviations](#deviations-from-the-spec). Do not duplicate rules that already live in the spec.
 
 ## Layers
 
@@ -32,7 +34,7 @@ FoodForm.razor
       → ShelfRemaining >= SizeUnits
       → insert Active, CreatedAt/UpdatedAt = DateTime.UtcNow
   → OperationResult.Ok → navigate to /food/{id}
-  → OperationResult.Fail → danger alert, values kept
+  → OperationResult.Fail → danger alert, values kept; DeleteImageAsync if an upload already landed
 ```
 
 ### Admin member
@@ -56,14 +58,14 @@ Expected rule violations never throw. They return `OperationResult` / `Operation
 | `Components/Pages` | Dashboard (`Home.razor`), `FoodList`, `FoodDetail`, `FoodForm`, `AdminUsers` |
 | `Components/Shared` | `FoodCard`, `FoodFilterBar`, `FridgeElevation`, `ErrorFallback`, `PasswordRevealButton` |
 | `Components/Account` | Template Identity pages; static SSR. Markup/styles may change; `[ExcludeFromInteractiveRouting]`, form POST handlers, and Identity services must not move out. |
-| `Services` | `InventoryService`, `CapacityService`, `UserAdminService`, `ExpiryRules`, `FoodDisplay`, `UserClaims`, `FoodListState`, `FoodSortPreference` |
+| `Services` | `InventoryService`, `CapacityService`, `UserAdminService`, `CapacityQueries`, `ExpiryRules`, `FoodDisplay`, `UserClaims`, `UploadPaths`, `LocalUrls`, `FoodListState`, `FoodSortPreference` |
 | `Services/Models` | Forms, filters, `FoodSort`, DTOs, `OperationResult` |
 | `Data` | `AppDbContext`, entities, enums, seeder, migrations |
 | `wwwroot/css/theme.css` | Mockup tokens and `fm-*` primitives |
 | `wwwroot/uploads` | User photos, gitignored |
 | `tests/FridgeManager.Tests` | xUnit + EF Core SQLite `:memory:` |
 
-## Guards (§6.3)
+## Guards (SPEC §6.3)
 
 Both must pass on create:
 
@@ -72,11 +74,11 @@ Both must pass on create:
 2. **Capacity** — `shelf.CapacityUnits - sum(Active SizeUnits on shelf) >= item.SizeUnits`  
    Message: `{shelf.Name} has {remaining} units remaining; this item requires {size} units.`
 
-On edit, capacity is re-checked only if the item is still Active and `ShelfId` or `SizeUnits` changed. The item's own current units are excluded from the sum (`CapacityQueries.ShelfUsageAsync(..., excludeItemId)`). Quota is not re-checked on edit.
+On edit, capacity is re-checked only if the item is still Active and `ShelfId` or `SizeUnits` changed. The item's own current units are excluded from the sum (`CapacityQueries.ShelfUsageAsync(..., excludeItemId)`). Quota is not re-checked on edit. The create form's live remaining figure uses the same exclusion so a full shelf does not look over-capacity while editing the item that already sits there.
 
-`ChangeStatusAsync` is idempotent when the status is unchanged. Reactivating a non-Active item is rejected (the UI never offers it).
+`ChangeStatusAsync` is idempotent when the status is unchanged. Reactivating a non-Active item is rejected (SPEC §6.6).
 
-## Authorization (§6.5)
+## Authorization (SPEC §6.5)
 
 `UserClaims` reads `ClaimTypes.NameIdentifier` and `IsInRole("Admin")`. Owner or Admin may update or change status. Anyone signed in may view and create. Forbidden messages:
 
@@ -103,33 +105,37 @@ All predicates are applied on `IQueryable` before `ToListAsync()`. Date threshol
 
 Filter state lives in the `/food?...` query string (`FoodFilter.ToQuery` / `FromQuery`). Changing a control `NavigateTo`s with `replace: true`. Dashboard stat cells and shelf headers deep-link into the same query. `FoodListState` (scoped) remembers the last list URL so detail/form Back returns to the filtered list. Sort field and direction are also written to `localStorage` (`FoodSortPreference`); visiting `/food` without `sort`/`dir` reapplies that browser preference. Clear filters leaves the All/My items tab and sort untouched.
 
-## Image upload (§8.6)
+`FoodFilter.CurrentUserId` is not an authorization check; `GetItemsAsync` returns whatever the filter asks for. Pages require `[Authorize]`.
+
+## Image upload (SPEC §8.6)
 
 `InventoryService.SaveImageAsync` accepts a single `IBrowserFile` and a signed-in `ClaimsPrincipal`:
 
 - Caller must have a `NameIdentifier`
 - Content type must be `image/jpeg`, `image/png`, or `image/webp`
-- File bytes must match that type’s magic header
+- File bytes must match that type’s magic header (`UploadPaths.HasMatchingMagic`)
 - Size cap `OpenReadStream(5 * 1024 * 1024)`
 - Filename is `Guid.NewGuid("N")` plus a server-chosen extension; the client name is discarded
 - File is written under `wwwroot/uploads/`; the database stores `/uploads/{guid}.ext`
-- `ImagePath` on create/update must be empty or that same `/uploads/{guid}.{jpg|png|webp}` shape
+- `ImagePath` on create/update must be empty or that same `/uploads/{guid}.{jpg|png|webp}` shape (`UploadPaths.IsSafeStoredPath`)
 - If create/update fails after an upload, `FoodForm` calls `DeleteImageAsync` so the file is not left behind
 - `/uploads` is served only to authenticated users (`Program.cs`); responses get `X-Content-Type-Options: nosniff`
 
 `FoodForm` reads the chosen file into memory for preview, then calls `SaveImageAsync` on submit and sets `FoodItemForm.ImagePath`. Cards and detail resolve a safe `ImagePath` if present, otherwise `/images/categories/{category}.webp`.
+
+Logout and Identity `ReturnUrl` values go through `LocalUrls.Sanitize` so only same-origin relative paths are followed.
 
 ## DTOs
 
 - `FoodItemForm` — DataAnnotations model for create/edit; `FromEntity` / `ApplyTo`.
 - `FoodFilter` — list query; `CurrentUserId` is not an authorization check.
 - `ShelfUsageDto` / `UserUsageDto` — live capacity and allowance panels.
-- `DashboardStats` — assembled in `CapacityService.GetDashboardStatsAsync` (shelves with filtered-include of Active items + active users). Empty shelves and members with zero items still appear.
+- `DashboardStats` — assembled in `CapacityService.GetDashboardStatsAsync` (shelves with filtered-include of Active items + active users). Empty shelves and members with zero items still appear. Expiring, expired, shared, and utilisation figures use that same Active set.
 - `AdminUserDto` — admin table row: username, email, quota, active count, status, admin flag. `GetUsersAsync` returns this instead of `ApplicationUser` so password hashes never reach the UI.
 
 ## Errors
 
-`Routes.razor` wraps the router in `ErrorBoundary`; fallback is `ErrorFallback` (generic copy, recover + dashboard). `/Error` and `/not-found` use the same `fm-*` language. Development sets `DetailedErrors: true` in `appsettings.Development.json` and on the Interactive Server circuit. Rule violations stay in `OperationResult.Error`.
+`Routes.razor` wraps the router in `ErrorBoundary`; fallback is `ErrorFallback` (generic copy, recover + dashboard). `/Error` and `/not-found` use the same `fm-*` language. Development sets `DetailedErrors: true` in `appsettings.Development.json` and on the Interactive Server circuit. Rule violations stay in `OperationResult.Error`. Unexpected exceptions are logged by the ASP.NET Core host / circuit; the fallback does not add its own logger.
 
 ## UI conventions
 
@@ -139,33 +145,30 @@ The mockup's Classical tokens live in `theme.css` (`--color-*`, self-hosted News
 
 Owner is shown as a chip on the card plate (`You` when the viewer owns the item), as a tag plus table row on detail, and as the subtitle on dashboard shelf chips. Item names truncate to one line with an ellipsis on cards and fridge chips; the detail page wraps long names.
 
+Dashboard shelf remaining is the `FridgeElevation` chip row (chip flex grows with `SizeUnits`; a free-space chip shows leftover units), not a per-shelf progress bar.
+
 | Mockup | App |
 |---|---|
 | `.tag` / `.btn` / `.table` / `.field` / `.input` / `.seg` | `.fm-tag` / `.fm-btn` / `.fm-table` / `.fm-field` / `.fm-input` / `.fm-seg` |
 | Expired outline | `--color-danger` stroke, never a fill |
-| Category plate | `/images/categories/{category}.webp` when `ImagePath` is empty |
+| Category plate | `/images/categories/{category}.webp` when `ImagePath` is empty or unsafe |
 
 ## Tests
 
 `SqliteDbFactory` holds one open `Data Source=:memory:` connection and calls `EnsureCreated` once. Each inventory/capacity test seeds a small fridge (Shelf A at capacity 5, Alice at quota 2) so the guards are demonstrable without the production seeder.
 
-`UserAdminServiceTests` builds a real `UserManager` / `RoleManager` on that factory. `SaveImageTests` uses a temp `IWebHostEnvironment.WebRootPath` and a fake `IBrowserFile`.
+`UserAdminServiceTests` builds a real `UserManager` / `RoleManager` on that factory. `SaveImageTests` uses a temp `IWebHostEnvironment.WebRootPath` and a fake `IBrowserFile`. `UploadPaths` and `LocalUrls` are tested as pure helpers.
+
+The SPEC §11 list is the minimum. Add a test in `tests/FridgeManager.Tests` whenever a service rule or filter changes.
 
 ## Deviations from the spec
 
-- Search uses `ToLower().Contains` so the same query runs on PostgreSQL and SQLite.
-- Re-activation of a consumed/missing/discarded item is rejected rather than re-running quota/capacity guards.
-- `IUserAdminService` methods take `ClaimsPrincipal actor` (spec snippet omitted it; §3.4 requires it).
-- `CreateUserAsync` takes `bool isAdmin` so a new member can be created as an administrator. `SetAdminAsync` promotes or demotes an existing member; an admin cannot remove their own admin role.
-- `UpdateMemberAsync` lets an admin change a member's username, email and quota in one save. Username and email must stay unique.
-- `GetUsersAsync` returns `AdminUserDto`, not `List<ApplicationUser>`.
-- Item-count line on the list is `{matched} of {active} active items` (or `{n} items` when Status is not Active).
-- Account Identity markup uses `fm-*` styles; render mode and POST handlers stay in place. Login is email-only (`[EmailAddress]`). Username remains unique in Identity and is the display name; it is not a sign-in identifier.
-- Login does not offer Register, resend-confirmation, or external login; members are created by an admin. `/Account/Register` and `/Account/RegisterConfirmation` redirect to login and never create a user or show a confirmation link. External login signs in an existing linked account only.
-- `SaveImageAsync` takes `ClaimsPrincipal` (spec snippet omitted it; §3.4 and §4 require authorization in the service).
-- Password sign-in uses `lockoutOnFailure: true` (5 failures, 15 minutes). Account self-delete is disabled.
-- Password fields on Login, Change password, and Add a member have a reveal toggle. Account pages are static SSR, so the toggle is `wwwroot/js/password-toggle.js`; AdminUsers uses component state.
+Accepted product decisions now live in the spec and in [adr/](adr/). What remains:
+
+- List Discard eligibility (`Active` ∧ expired ∧ `CanModify`) is computed in `FoodList`, not in a service. `ChangeStatusAsync` still enforces owner/admin; the expired-only restriction is card UX.
+- Identity template remnants stay reachable: passkey on Login, 2FA pages, Forgot password. External login signs in an already-linked account and never creates one.
+- Password reveal uses `wwwroot/js/password-toggle.js` on static Account pages and component state on AdminUsers.
 
 ## Known limitations (do not “fix”)
 
-Capacity check race, Interactive Server circuit affinity, local file storage, no audit trail, size units are approximate. Listed in the [README](../README.md).
+Capacity check race, Interactive Server circuit affinity, local file storage, no audit trail, size units are approximate, orphan uploads, missing-file 404, disable delay up to 30 minutes, Identity template remnants. Listed in the [README](../README.md) and SPEC §13.
