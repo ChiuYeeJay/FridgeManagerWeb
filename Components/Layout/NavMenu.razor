@@ -4,34 +4,44 @@
 
 <div class="app-nav-wrap">
     <nav class="app-nav">
-        <a class="app-brand" href="/">Fridge Manager</a>
-        <NavLink href="/" Match="NavLinkMatch.All">Dashboard</NavLink>
-        <NavLink href="food">Food</NavLink>
-        <AuthorizeView Roles="Admin">
-            <NavLink href="admin/users">Users</NavLink>
-        </AuthorizeView>
-        <span class="app-nav-spacer"></span>
-        <div class="app-nav-user">
-            <AuthorizeView>
-                <Authorized>
-                    <span>@ShortName(context.User.Identity?.Name)</span>
-                    <NavLink href="Account/Manage">Account</NavLink>
-                    <form action="Account/Logout" method="post">
-                        <AntiforgeryToken />
-                        <input type="hidden" name="ReturnUrl" value="@_currentUrl" />
-                        <button type="submit" class="app-nav-btn">Log out</button>
-                    </form>
-                </Authorized>
-                <NotAuthorized>
-                    <NavLink href="Account/Login">Log in</NavLink>
-                </NotAuthorized>
+        <input @key="_menuEpoch" type="checkbox" id="app-nav-toggle" class="app-nav-check" />
+        <div class="app-nav-bar">
+            <a class="app-brand" href="/">Fridge Manager</a>
+            <label class="app-nav-toggle" for="app-nav-toggle">Menu</label>
+        </div>
+        <label class="app-nav-backdrop" for="app-nav-toggle" aria-label="Close menu"></label>
+        <div class="app-nav-links">
+            <NavLink href="/" Match="NavLinkMatch.All">Dashboard</NavLink>
+            <NavLink href="food">Food</NavLink>
+            <AuthorizeView Roles="Admin">
+                <NavLink href="admin/users">Users</NavLink>
             </AuthorizeView>
+            <span class="app-nav-spacer"></span>
+            <div class="app-nav-user">
+                <AuthorizeView>
+                    <Authorized>
+                        <div class="app-nav-account">
+                            <NavLink href="Account/Manage">Account</NavLink>
+                            <span class="app-nav-username">@ShortName(context.User.Identity?.Name)</span>
+                        </div>
+                        <form action="Account/Logout" method="post">
+                            <AntiforgeryToken />
+                            <input type="hidden" name="ReturnUrl" value="@_currentUrl" />
+                            <button type="submit" class="app-nav-btn">Log out</button>
+                        </form>
+                    </Authorized>
+                    <NotAuthorized>
+                        <NavLink href="Account/Login">Log in</NavLink>
+                    </NotAuthorized>
+                </AuthorizeView>
+            </div>
         </div>
     </nav>
 </div>
 
 @code {
     private string? _currentUrl;
+    private int _menuEpoch;
 
     protected override void OnInitialized()
     {
@@ -42,6 +52,7 @@
     private void OnLocationChanged(object? sender, LocationChangedEventArgs e)
     {
         _currentUrl = NavigationManager.ToBaseRelativePath(e.Location);
+        _menuEpoch++;
         StateHasChanged();
     }
 

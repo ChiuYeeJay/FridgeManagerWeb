@@ -16,7 +16,7 @@ else if (_blocked is not null)
 else
 {
     <div class="eyebrow">@(IsEdit ? "Edit item" : "New item")</div>
-    <h1 class="page-title" style="margin-bottom:20px">@(IsEdit ? "Change what’s on the shelf" : "Put something in the fridge")</h1>
+    <h1 class="page-title page-lead">@(IsEdit ? "Change what’s on the shelf" : "Put something in the fridge")</h1>
 
     @if (_error is not null)
     {
@@ -41,6 +41,53 @@ else
     <EditForm @ref="_editForm" Model="Form" OnValidSubmit="SaveAsync" OnInvalidSubmit="OnInvalidSave">
         <DataAnnotationsValidator />
         <div class="form-grid">
+            <aside class="form-sidebar-photo">
+                <h5>Photo</h5>
+                <div class="form-plate form-plate-picker @(_dragging ? "is-dragging" : null)">
+                    @if (PhotoSrc is not null)
+                    {
+                        <img src="@PhotoSrc" alt="" @onerror="OnPhotoError" />
+                    }
+                    else
+                    {
+                        <span class="form-plate-hint">DROP A PHOTO<br>or choose a file</span>
+                    }
+                    <InputFile id="item-photo"
+                               class="form-plate-input"
+                               accept=".jpg,.jpeg,.png,.webp,image/jpeg,image/png,image/webp"
+                               OnChange="OnPhotoSelected"
+                               @ondragenter="OnPhotoDragEnter"
+                               @ondragleave="OnPhotoDragLeave" />
+                </div>
+                <label class="fm-btn fm-btn-secondary fm-btn-block form-photo-choose" for="item-photo">Choose file…</label>
+                @if (_photoError is not null)
+                {
+                    <div class="field-error">@_photoError</div>
+                }
+                <div class="text-muted form-photo-hint">JPG, PNG or WebP · 5 MB maximum. Left empty, the category plate is used.</div>
+                @if (ShowAi)
+                {
+                    <p class="text-muted form-photo-hint">
+                        AI Autofill sends a processed copy of this photo to Google Gemini for
+                        analysis. Do not use sensitive or confidential images. Always review
+                        AI-generated suggestions before saving.
+                    </p>
+                    <button @key="_analyzeEpoch"
+                            type="button"
+                            class="fm-btn fm-btn-secondary fm-btn-block @(_analyzing ? "is-pending" : null)"
+                            disabled="@FormBusy"
+                            data-fm-busy-on-click
+                            data-fm-busy-label="Analyzing photo..."
+                            aria-busy="@_analyzing"
+                            @onclick="AnalyzeAsync">
+                        @(_analyzing ? "Analyzing photo..." : "Analyze with AI")
+                    </button>
+                    @if (_aiError is not null)
+                    {
+                        <div class="field-error">@_aiError</div>
+                    }
+                }
+            </aside>
             <div class="form-stack">
                 <div class="fm-field">
                     <div class="fm-field-heading">
@@ -157,73 +204,26 @@ else
                                    placeholder="Anything the team should know" />
                 </div>
             </div>
-            <aside class="form-aside">
-                <div>
-                    <h5>Photo</h5>
-                    <div class="form-plate form-plate-picker @(_dragging ? "is-dragging" : null)">
-                        @if (PhotoSrc is not null)
-                        {
-                            <img src="@PhotoSrc" alt="" @onerror="OnPhotoError" />
-                        }
-                        else
-                        {
-                            <span class="form-plate-hint">DROP A PHOTO<br>or choose a file</span>
-                        }
-                        <InputFile id="item-photo"
-                                   class="form-plate-input"
-                                   accept=".jpg,.jpeg,.png,.webp,image/jpeg,image/png,image/webp"
-                                   OnChange="OnPhotoSelected"
-                                   @ondragenter="OnPhotoDragEnter"
-                                   @ondragleave="OnPhotoDragLeave" />
-                    </div>
-                    <label class="fm-btn fm-btn-secondary fm-btn-block form-photo-choose" for="item-photo">Choose file…</label>
-                    @if (_photoError is not null)
-                    {
-                        <div class="field-error">@_photoError</div>
-                    }
-                    <div class="text-muted form-photo-hint">JPG, PNG or WebP · 5 MB maximum. Left empty, the category plate is used.</div>
-                    @if (ShowAi)
-                    {
-                        <p class="text-muted form-photo-hint">
-                            AI Autofill sends a processed copy of this photo to Google Gemini for
-                            analysis. Do not use sensitive or confidential images. Always review
-                            AI-generated suggestions before saving.
-                        </p>
-                        <button @key="_analyzeEpoch"
-                                type="button"
-                                class="fm-btn fm-btn-secondary fm-btn-block @(_analyzing ? "is-pending" : null)"
-                                disabled="@FormBusy"
-                                data-fm-busy-on-click
-                                data-fm-busy-label="Analyzing photo..."
-                                aria-busy="@_analyzing"
-                                @onclick="AnalyzeAsync">
-                            @(_analyzing ? "Analyzing photo..." : "Analyze with AI")
-                        </button>
-                        @if (_aiError is not null)
-                        {
-                            <div class="field-error">@_aiError</div>
-                        }
-                    }
-                </div>
+            <aside class="form-sidebar-actions">
                 @if (_allowance is not null)
                 {
-                    <div style="border-top:1px solid var(--color-divider);padding-top:18px">
+                    <div class="form-allowance">
                         <h5>Your allowance</h5>
-                        <div style="display:flex;justify-content:space-between;font-size:13px">
+                        <div class="form-allowance-row">
                             <span>Active items</span>
                             <span class="fig">@_allowance.Used / @_allowance.Quota</span>
                         </div>
-                        <div class="bar" style="margin-top:8px;height:8px">
+                        <div class="bar form-allowance-bar">
                             <div class="bar-fill" style="width:@AllowancePercent%"></div>
                         </div>
-                        <div class="text-muted" style="font-size:11px;margin-top:8px">
+                        <div class="text-muted form-allowance-note">
                             @(_allowance.Used >= _allowance.Quota
                                 ? "You are at your limit."
                                 : $"Room for {_allowance.Quota - _allowance.Used} more.")
                         </div>
                     </div>
                 }
-                <div style="border-top:1px solid var(--color-divider);padding-top:18px;display:flex;flex-direction:column;gap:8px">
+                <div class="form-actions">
                     <button @key="_submitEpoch"
                             class="fm-btn fm-btn-primary fm-btn-block @(_saving ? "is-pending" : null)"
                             type="submit"

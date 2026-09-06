@@ -1,57 +1,66 @@
 @using FridgeManager.Data.Enums
 @implements IAsyncDisposable
 
-<div class="filter-bar">
+<div class="filter-bar @(_filtersOpen ? "is-open" : null)">
     <div class="filter-bar-row">
         <div class="fm-field filter-search">
             <label for="food-search">Search by name</label>
             <input id="food-search" class="fm-input" type="text" placeholder="Search…"
                    @bind="Filter.Search" @bind:event="oninput" @bind:after="OnSearchAfter" />
         </div>
-        <div class="fm-field filter-category">
-            <label for="food-category">Category</label>
-            <select id="food-category" class="fm-input" value="@(Filter.Category?.ToString() ?? "")" @onchange="OnCategory">
-                <option value="">All categories</option>
-                @foreach (var category in Enum.GetValues<FoodCategory>())
-                {
-                    <option value="@category">@category</option>
-                }
-            </select>
-        </div>
-        <div class="fm-field filter-shelf">
-            <label for="food-shelf">Shelf</label>
-            <select id="food-shelf" class="fm-input" value="@(Filter.ShelfId?.ToString() ?? "")" @onchange="OnShelf">
-                <option value="">All shelves</option>
-                @foreach (var shelf in Shelves)
-                {
-                    <option @key="shelf.ShelfId" value="@shelf.ShelfId">@shelf.Name</option>
-                }
-            </select>
-        </div>
-        <div class="fm-field filter-status">
-            <label for="food-status">Status</label>
-            <select id="food-status" class="fm-input" value="@Filter.Status" @onchange="OnStatus">
-                @foreach (var status in Enum.GetValues<FoodStatus>())
-                {
-                    <option value="@status">@status</option>
-                }
-            </select>
-        </div>
-        <div class="fm-field filter-expiry">
-            <label for="food-expiry">Expiry</label>
-            <select id="food-expiry" class="fm-input" value="@(Filter.Expiry?.ToString() ?? "")" @onchange="OnExpiry">
-                <option value="">Any expiry</option>
-                <option value="@ExpiryState.Normal">Normal</option>
-                <option value="@ExpiryState.ExpiringSoon">Expiring soon</option>
-                <option value="@ExpiryState.Expired">Expired</option>
-            </select>
-        </div>
-        <div class="filter-toggles">
-            <label class="fm-check"><input type="checkbox" @bind="Filter.SharedOnly" @bind:after="NotifyImmediate" />Shared</label>
-            <button type="button" class="fm-btn fm-btn-ghost fm-btn-sm filter-clear"
-                    disabled="@(!Filter.HasClearableFilters)" @onclick="ClearFilters">
-                Clear
-            </button>
+        <button type="button"
+                class="fm-btn fm-btn-secondary filter-disclose @(HasSecondaryFilters ? "is-active" : null)"
+                aria-expanded="@_filtersOpen"
+                aria-controls="food-filter-more"
+                @onclick="ToggleFilters">
+            Filters
+        </button>
+        <div id="food-filter-more" class="filter-more">
+            <div class="fm-field filter-category">
+                <label for="food-category">Category</label>
+                <select id="food-category" class="fm-input" value="@(Filter.Category?.ToString() ?? "")" @onchange="OnCategory">
+                    <option value="">All categories</option>
+                    @foreach (var category in Enum.GetValues<FoodCategory>())
+                    {
+                        <option value="@category">@category</option>
+                    }
+                </select>
+            </div>
+            <div class="fm-field filter-shelf">
+                <label for="food-shelf">Shelf</label>
+                <select id="food-shelf" class="fm-input" value="@(Filter.ShelfId?.ToString() ?? "")" @onchange="OnShelf">
+                    <option value="">All shelves</option>
+                    @foreach (var shelf in Shelves)
+                    {
+                        <option @key="shelf.ShelfId" value="@shelf.ShelfId">@shelf.Name</option>
+                    }
+                </select>
+            </div>
+            <div class="fm-field filter-status">
+                <label for="food-status">Status</label>
+                <select id="food-status" class="fm-input" value="@Filter.Status" @onchange="OnStatus">
+                    @foreach (var status in Enum.GetValues<FoodStatus>())
+                    {
+                        <option value="@status">@status</option>
+                    }
+                </select>
+            </div>
+            <div class="fm-field filter-expiry">
+                <label for="food-expiry">Expiry</label>
+                <select id="food-expiry" class="fm-input" value="@(Filter.Expiry?.ToString() ?? "")" @onchange="OnExpiry">
+                    <option value="">Any expiry</option>
+                    <option value="@ExpiryState.Normal">Normal</option>
+                    <option value="@ExpiryState.ExpiringSoon">Expiring soon</option>
+                    <option value="@ExpiryState.Expired">Expired</option>
+                </select>
+            </div>
+            <div class="filter-toggles">
+                <label class="fm-check"><input type="checkbox" @bind="Filter.SharedOnly" @bind:after="NotifyImmediate" />Shared</label>
+                <button type="button" class="fm-btn fm-btn-ghost fm-btn-sm filter-clear"
+                        disabled="@(!Filter.HasClearableFilters)" @onclick="ClearFilters">
+                    Clear
+                </button>
+            </div>
         </div>
     </div>
     <div class="filter-hint">
@@ -128,6 +137,16 @@
 
     private CancellationTokenSource? _searchCts;
     private bool _sortOpen;
+    private bool _filtersOpen;
+
+    private bool HasSecondaryFilters
+        => Filter.SharedOnly
+           || Filter.Category is not null
+           || Filter.ShelfId is not null
+           || Filter.Status != FoodStatus.Active
+           || Filter.Expiry is not null;
+
+    private void ToggleFilters() => _filtersOpen = !_filtersOpen;
 
     private string CountLabel => Filter.Status == FoodStatus.Active
         ? $"{MatchedCount} of {ActiveCount} active items"

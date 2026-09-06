@@ -131,24 +131,26 @@
 }
 else
 {
-    <table class="fm-table admin-table">
-        <thead>
-            <tr>
-                <th class="admin-col-name">Username</th>
-                <th class="admin-col-email">Email</th>
-                <th class="admin-col-quota">Quota</th>
-                <th class="admin-col-count">Active items</th>
-                <th class="admin-col-status">Status</th>
-                <th class="admin-col-actions">Actions</th>
-            </tr>
-        </thead>
-        <tbody>
-            @foreach (var member in ActiveMembers)
-            {
-                @memberRow(member)
-            }
-        </tbody>
-    </table>
+    <div class="admin-table-scroll" tabindex="0" role="region" aria-label="Active members">
+        <table class="fm-table admin-table">
+            <thead>
+                <tr>
+                    <th class="admin-col-name">Username</th>
+                    <th class="admin-col-email">Email</th>
+                    <th class="admin-col-quota">Quota</th>
+                    <th class="admin-col-count">Active items</th>
+                    <th class="admin-col-status">Status</th>
+                    <th class="admin-col-actions">Actions</th>
+                </tr>
+            </thead>
+            <tbody>
+                @foreach (var member in ActiveMembers)
+                {
+                    @memberRow(member)
+                }
+            </tbody>
+        </table>
+    </div>
 
     @if (DisabledMembers.Count > 0)
     {
@@ -159,24 +161,26 @@ else
             </button>
             @if (_disabledOpen)
             {
-                <table class="fm-table admin-table">
-                    <thead>
-                        <tr>
-                            <th class="admin-col-name">Username</th>
-                            <th class="admin-col-email">Email</th>
-                            <th class="admin-col-quota">Quota</th>
-                            <th class="admin-col-count">Active items</th>
-                            <th class="admin-col-status">Status</th>
-                            <th class="admin-col-actions">Actions</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        @foreach (var member in DisabledMembers)
-                        {
-                            @memberRow(member)
-                        }
-                    </tbody>
-                </table>
+                <div class="admin-table-scroll" tabindex="0" role="region" aria-label="Disabled members">
+                    <table class="fm-table admin-table">
+                        <thead>
+                            <tr>
+                                <th class="admin-col-name">Username</th>
+                                <th class="admin-col-email">Email</th>
+                                <th class="admin-col-quota">Quota</th>
+                                <th class="admin-col-count">Active items</th>
+                                <th class="admin-col-status">Status</th>
+                                <th class="admin-col-actions">Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @foreach (var member in DisabledMembers)
+                            {
+                                @memberRow(member)
+                            }
+                        </tbody>
+                    </table>
+                </div>
             }
         </div>
     }

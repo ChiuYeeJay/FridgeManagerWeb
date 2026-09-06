@@ -22,13 +22,17 @@
             </div>
         }
     </div>
-    <div class="utilisation">
-        <div class="skeleton skeleton-bar"></div>
-    </div>
-    <div class="dash-split">
-        <div class="skeleton" style="height:280px"></div>
+    <div class="dash-body">
+        <div class="utilisation">
+            <div class="skeleton skeleton-bar"></div>
+        </div>
+        <div class="dash-fridge">
+            <div class="skeleton dash-skel"></div>
+        </div>
         <div class="dash-split-rule"></div>
-        <div class="skeleton" style="height:280px"></div>
+        <div class="dash-members">
+            <div class="skeleton dash-skel"></div>
+        </div>
     </div>
 }
 else
@@ -56,30 +60,29 @@ else
         </a>
     </div>
 
-    <div class="utilisation">
-        <div class="utilisation-head">
-            <h4>Overall utilisation</h4>
-            <div class="fig" style="font-family:var(--font-heading);font-size:18px">
-                @_stats.UsedUnits <span class="text-muted" style="font-size:14px">/ @_stats.TotalCapacity units · @_stats.UtilisationPercent%</span>
+    <div class="dash-body">
+        <a class="fm-btn fm-btn-primary dash-cta" href="food/new">Add an item</a>
+        <div class="utilisation">
+            <div class="utilisation-head">
+                <h4>Overall utilisation</h4>
+                <div class="fig utilisation-fig">
+                    @_stats.UsedUnits <span class="text-muted utilisation-fig-unit">/ @_stats.TotalCapacity units · @_stats.UtilisationPercent%</span>
+                </div>
+            </div>
+            <div class="bar">
+                <div class="bar-fill" style="width:@_stats.UtilisationPercent%"></div>
             </div>
         </div>
-        <div class="bar">
-            <div class="bar-fill" style="width:@_stats.UtilisationPercent%"></div>
-        </div>
-    </div>
-
-    <div class="dash-split">
-        <div>
-            <div class="utilisation-head" style="margin-bottom:14px">
+        <div class="dash-fridge">
+            <div class="utilisation-head dash-panel-head">
                 <h4>Where things sit</h4>
-                <span class="text-muted fig" style="font-size:11px">@_stats.UsedUnits of @_stats.TotalCapacity units · chip width ∝ size</span>
+                <span class="text-muted fig dash-panel-note">@_stats.UsedUnits of @_stats.TotalCapacity units · chip width ∝ size</span>
             </div>
             <FridgeElevation Shelves="_stats.Shelves" />
         </div>
         <div class="dash-split-rule"></div>
-        <div>
-            <a class="fm-btn fm-btn-primary dash-cta" href="food/new">Add an item</a>
-            <h4 style="margin:0 0 14px">Per-user usage</h4>
+        <div class="dash-members">
+            <h4 class="dash-members-title">Per-user usage</h4>
             <table class="fm-table">
                 <thead>
                     <tr>
