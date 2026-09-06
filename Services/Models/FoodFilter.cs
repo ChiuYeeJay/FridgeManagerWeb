@@ -13,6 +13,8 @@ public class FoodFilter
     public ExpiryState? Expiry { get; set; }
     public FoodSort Sort { get; set; } = FoodSort.Expiry;
     public bool? SortDescending { get; set; }
+    public string? OwnerId { get; set; }
+    public DateOnly? Today { get; set; }
     public string? CurrentUserId { get; set; }
 
     public bool EffectiveDescending => SortDescending ?? FoodSortRules.DefaultDescending(Sort);
@@ -22,6 +24,7 @@ public class FoodFilter
            || SharedOnly
            || Category is not null
            || ShelfId is not null
+           || !string.IsNullOrEmpty(OwnerId)
            || Status != FoodStatus.Active
            || Expiry is not null;
 
@@ -31,6 +34,7 @@ public class FoodFilter
         SharedOnly = false;
         Category = null;
         ShelfId = null;
+        OwnerId = null;
         Status = FoodStatus.Active;
         Expiry = null;
     }
@@ -61,6 +65,11 @@ public class FoodFilter
         if (ShelfId is int shelfId)
         {
             parts.Add($"shelf={shelfId}");
+        }
+
+        if (!string.IsNullOrEmpty(OwnerId))
+        {
+            parts.Add($"owner={Uri.EscapeDataString(OwnerId)}");
         }
 
         if (Status is FoodStatus status && status != FoodStatus.Active)
@@ -103,7 +112,9 @@ public class FoodFilter
         string? expiry = null,
         string? sort = null,
         string? dir = null,
-        string? currentUserId = null)
+        string? currentUserId = null,
+        string? owner = null,
+        DateOnly? today = null)
     {
         var parsedSort = Enum.TryParse<FoodSort>(sort, ignoreCase: true, out var sortValue)
             ? sortValue
@@ -133,6 +144,8 @@ public class FoodFilter
                 : null,
             Sort = parsedSort,
             SortDescending = descending,
+            OwnerId = string.IsNullOrWhiteSpace(owner) ? null : owner.Trim(),
+            Today = today,
             CurrentUserId = currentUserId
         };
     }

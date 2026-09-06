@@ -100,7 +100,7 @@ public sealed class CapacityServiceTests
             await db.SaveChangesAsync();
         }
 
-        var stats = await host.Capacity.GetDashboardStatsAsync();
+        var stats = await host.Capacity.GetDashboardStatsAsync(today);
 
         Assert.Equal(3, stats.ActiveCount);
         Assert.Equal(1, stats.ExpiringSoonCount);

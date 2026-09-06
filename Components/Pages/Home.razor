@@ -94,7 +94,7 @@ else
                     @foreach (var member in _stats.Members)
                     {
                         <tr @key="member.UserId">
-                            <td>@member.Name</td>
+                            <td><a class="dash-member-link" href="@($"food?owner={member.UserId}")">@member.Name</a></td>
                             <td class="num">
                                 <span class="fig">@member.Used / @member.Quota</span>
                                 @if (member.AtLimit)
@@ -115,18 +115,23 @@ else
     [Inject]
     private ICapacityService Capacity { get; set; } = default!;
 
+    [Inject]
+    private UserClock Clock { get; set; } = default!;
+
     [CascadingParameter]
     private Task<AuthenticationState> AuthState { get; set; } = default!;
 
     private DashboardStats? _stats;
-    private readonly DateOnly _today = DateOnly.FromDateTime(DateTime.UtcNow);
+    private DateOnly _today;
     private int _myItems;
 
     protected override async Task OnInitializedAsync()
     {
         var user = (await AuthState).User;
         var userId = UserClaims.GetUserId(user);
-        _stats = await Capacity.GetDashboardStatsAsync();
+        await Clock.ResolveAsync(user);
+        _today = Clock.Today;
+        _stats = await Capacity.GetDashboardStatsAsync(_today);
         _myItems = _stats.Members.FirstOrDefault(m => m.UserId == userId)?.Used ?? 0;
     }
 }

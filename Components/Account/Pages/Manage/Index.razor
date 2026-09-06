@@ -27,15 +27,34 @@
                 <InputText @bind-Value="Input.PhoneNumber" id="Input.PhoneNumber" class="fm-input" placeholder="Enter your phone number" />
                 <ValidationMessage For="() => Input.PhoneNumber" class="validation-message" />
             </div>
+            <div class="fm-field">
+                <label for="Input.TimeZoneId">Time zone</label>
+                <InputSelect @bind-Value="Input.TimeZoneId" id="Input.TimeZoneId" class="fm-input">
+                    <option value="">Automatic (browser)</option>
+                    @foreach (var zone in TimeZones)
+                    {
+                        <option value="@zone.Id">@zone.Label</option>
+                    }
+                </InputSelect>
+                <p class="muted-note">Automatic uses the time zone your browser reports. Expiration “today” and timestamps follow this setting.</p>
+            </div>
             <button type="submit" class="fm-btn fm-btn-primary fm-btn-block">Save</button>
         </div>
     </EditForm>
 </div>
 
 @code {
+    private static readonly IReadOnlyList<(string Id, string Label)> TimeZones = TimeZoneInfo
+        .GetSystemTimeZones()
+        .OrderBy(z => z.BaseUtcOffset)
+        .ThenBy(z => z.DisplayName, StringComparer.OrdinalIgnoreCase)
+        .Select(z => (z.Id, z.DisplayName))
+        .ToList();
+
     private ApplicationUser? user;
     private string? username;
     private string? phoneNumber;
+    private string? timeZoneId;
 
     [CascadingParameter]
     private HttpContext HttpContext { get; set; } = default!;
@@ -56,8 +75,10 @@
 
         username = await UserManager.GetUserNameAsync(user);
         phoneNumber = await UserManager.GetPhoneNumberAsync(user);
+        timeZoneId = user.TimeZoneId;
 
         Input.PhoneNumber ??= phoneNumber;
+        Input.TimeZoneId ??= timeZoneId ?? "";
     }
 
     private async Task OnValidSubmitAsync()
@@ -78,6 +99,24 @@
             }
         }
 
+        var desiredZone = string.IsNullOrWhiteSpace(Input.TimeZoneId) ? null : Input.TimeZoneId.Trim();
+        if (desiredZone is not null && !TimeZoneInfo.TryFindSystemTimeZoneById(desiredZone, out _))
+        {
+            RedirectManager.RedirectToCurrentPageWithStatus("Error: That time zone is not available.", HttpContext);
+            return;
+        }
+
+        if (!string.Equals(user.TimeZoneId, desiredZone, StringComparison.Ordinal))
+        {
+            user.TimeZoneId = desiredZone;
+            var update = await UserManager.UpdateAsync(user);
+            if (!update.Succeeded)
+            {
+                RedirectManager.RedirectToCurrentPageWithStatus("Error: Failed to set time zone.", HttpContext);
+                return;
+            }
+        }
+
         await SignInManager.RefreshSignInAsync(user);
         RedirectManager.RedirectToCurrentPageWithStatus("Your profile has been updated", HttpContext);
     }
@@ -87,5 +126,8 @@
         [Phone]
         [Display(Name = "Phone number")]
         public string? PhoneNumber { get; set; }
+
+        [Display(Name = "Time zone")]
+        public string? TimeZoneId { get; set; }
     }
 }

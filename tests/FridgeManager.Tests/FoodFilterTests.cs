@@ -23,6 +23,7 @@ public sealed class FoodFilterTests
             SharedOnly = true,
             Category = FoodCategory.Drink,
             ShelfId = 2,
+            OwnerId = "alice-id",
             Status = FoodStatus.Consumed,
             Expiry = ExpiryState.ExpiringSoon,
             Sort = FoodSort.Name,
@@ -30,7 +31,7 @@ public sealed class FoodFilterTests
         };
 
         Assert.Equal(
-            "q=kombucha&mine=1&shared=1&category=Drink&shelf=2&status=Consumed&expiry=ExpiringSoon&sort=Name&dir=desc",
+            "q=kombucha&mine=1&shared=1&category=Drink&shelf=2&owner=alice-id&status=Consumed&expiry=ExpiringSoon&sort=Name&dir=desc",
             filter.ToQuery());
         Assert.StartsWith("food?", filter.ToPath());
     }
@@ -48,7 +49,9 @@ public sealed class FoodFilterTests
             expiry: "Expired",
             sort: "Created",
             dir: "asc",
-            currentUserId: "alice-id");
+            currentUserId: "alice-id",
+            owner: " bob-id ",
+            today: new DateOnly(2026, 9, 6));
 
         Assert.Equal("oat", filter.Search);
         Assert.True(filter.MineOnly);
@@ -61,6 +64,8 @@ public sealed class FoodFilterTests
         Assert.False(filter.SortDescending);
         Assert.False(filter.EffectiveDescending);
         Assert.Equal("alice-id", filter.CurrentUserId);
+        Assert.Equal("bob-id", filter.OwnerId);
+        Assert.Equal(new DateOnly(2026, 9, 6), filter.Today);
     }
 
     [Fact]
@@ -99,6 +104,7 @@ public sealed class FoodFilterTests
             SharedOnly = true,
             Category = FoodCategory.Drink,
             ShelfId = 2,
+            OwnerId = "bob-id",
             Status = FoodStatus.Consumed,
             Expiry = ExpiryState.Expired,
             Sort = FoodSort.Owner,
@@ -110,8 +116,17 @@ public sealed class FoodFilterTests
 
         Assert.False(filter.HasClearableFilters);
         Assert.True(filter.MineOnly);
+        Assert.Null(filter.OwnerId);
         Assert.Equal(FoodSort.Owner, filter.Sort);
         Assert.True(filter.SortDescending);
         Assert.Equal(FoodStatus.Active, filter.Status);
     }
+
+    [Fact]
+    public void ToQuery_IncludesOwner()
+        => Assert.Equal("owner=alice-id", new FoodFilter { OwnerId = "alice-id" }.ToQuery());
+
+    [Fact]
+    public void HasClearableFilters_WhenOnlyOwnerIsSet()
+        => Assert.True(new FoodFilter { OwnerId = "alice-id" }.HasClearableFilters);
 }

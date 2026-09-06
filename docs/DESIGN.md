@@ -89,14 +89,14 @@ Expected rule violations never throw. They return `OperationResult` / `Operation
 | `Components/Pages` | Dashboard (`Home.razor`), `FoodList`, `FoodDetail`, `FoodForm`, `AdminUsers` |
 | `Components/Shared` | `FoodCard`, `FoodFilterBar`, `FridgeElevation`, `ErrorFallback`, `PasswordRevealButton` |
 | `Components/Account` | Template Identity pages; static SSR. Markup/styles may change; `[ExcludeFromInteractiveRouting]`, form POST handlers, and Identity services must not move out. |
-| `Services` | `InventoryService`, `CapacityService`, `UserAdminService`, `IImageStorage` / `LocalImageStorage` / `R2ImageStorage`, `ImageNormalizer`, `IFoodImageAnalysisService` / `FoodImageAnalysisService`, `IFoodImageAnalyzer` / `GeminiFoodImageAnalyzer` / `FakeFoodImageAnalyzer`, `AiRateLimiter`, `GeminiOptions`, `CapacityQueries`, `ExpiryRules`, `FoodDisplay`, `UserClaims`, `UploadPaths`, `LocalUrls`, `NpgsqlConnectionStrings`, `FoodListState`, `FoodSortPreference` |
+| `Services` | `InventoryService`, `CapacityService`, `UserAdminService`, `IImageStorage` / `LocalImageStorage` / `R2ImageStorage`, `ImageNormalizer`, `IFoodImageAnalysisService` / `FoodImageAnalysisService`, `IFoodImageAnalyzer` / `GeminiFoodImageAnalyzer` / `FakeFoodImageAnalyzer`, `AiRateLimiter`, `GeminiOptions`, `AppOptions`, `UserClock`, `FormScroll`, `CapacityQueries`, `ExpiryRules`, `FoodDisplay`, `UserClaims`, `UploadPaths`, `LocalUrls`, `NpgsqlConnectionStrings`, `FoodListState`, `FoodSortPreference` |
 | `Services/Models` | Forms, filters, `FoodSort`, DTOs, `OperationResult`, `FoodImageAnalysisResult` |
 | `Data` | `AppDbContext` (`IDataProtectionKeyContext`), `DbSeeder`, `StartupBootstrap`, `SeedOptions`, entities, enums, migrations |
 | `Dockerfile` / `.dockerignore` | Production image; publishes the root `FridgeManager.csproj` only |
 | `docker-compose.yml` | Local production container + Postgres (throw-away `Seed__*` values) |
 | `render.yaml` | Render Blueprint: free web service + free Postgres; secrets are `sync: false` |
 | `wwwroot/css/theme.css` | Mockup tokens and `fm-*` primitives |
-| `wwwroot/js` | `password-toggle.js` (Account SSR); `busy-click.js` (immediate pending state on long Interactive Server actions) |
+| `wwwroot/js` | `password-toggle.js` (Account SSR); `busy-click.js` (immediate pending state on long Interactive Server actions); `time-zone.js` (browser IANA id for `UserClock`) |
 | `wwwroot/uploads` | Local-provider photos (`food-images/yyyy/MM/…`), gitignored; runtime files served with `UseStaticFiles` |
 | `tests/FridgeManager.Tests` | xUnit + EF Core SQLite `:memory:` |
 
@@ -132,15 +132,22 @@ All predicates are applied on `IQueryable` before `ToListAsync()`. Date threshol
 | Filter | Translation |
 |---|---|
 | Search | `Name.ToLower().Contains(term)` after trim (not `ILike`) |
-| Mine | `OwnerId == FoodFilter.CurrentUserId` (All / My items tab on `/food`; page fills this from auth state) |
+| Mine | `OwnerId == FoodFilter.CurrentUserId` (All / My items tab on `/food`; page fills this from auth state). Choosing My items clears `OwnerId`. |
+| Owner | `OwnerId == FoodFilter.OwnerId` (`owner=` in the URL). The Owner select sits after Shelf and before Status. Choosing an owner sets `MineOnly` false. |
 | Shared | `IsShared` |
 | Category / Shelf / Status | equality; Status defaults to `Active` |
-| Expiry | `Expired` → `< today`; `ExpiringSoon` → `today..today+3`; `Normal` → `> today+3`; omit for any |
+| Expiry | `Expired` → `< today`; `ExpiringSoon` → `today..today+3`; `Normal` → `> today+3`; omit for any. `today` is `FoodFilter.Today` (viewer zone), else UTC. |
 | Sort | `Expiry` (default, soonest first), `Created`/`Updated` (newest first), `Name`, `Owner` (`UserName` then `Name`), `Category` then `Name`. `dir=asc`/`dir=desc` only when it differs from that field’s default |
 
-Filter state lives in the `/food?...` query string (`FoodFilter.ToQuery` / `FromQuery`). Changing a control `NavigateTo`s with `replace: true`. Dashboard stat cells and shelf headers deep-link into the same query. `FoodListState` (scoped) remembers the last list URL so detail/form Back returns to the filtered list. Sort field and direction are also written to `localStorage` (`FoodSortPreference`); visiting `/food` without `sort`/`dir` reapplies that browser preference. Clear filters leaves the All/My items tab and sort untouched.
+Filter state lives in the `/food?...` query string (`FoodFilter.ToQuery` / `FromQuery`). Changing a control `NavigateTo`s with `replace: true`. Dashboard stat cells, shelf headers, and per-user usage names deep-link into the same query. `FoodListState` (scoped) remembers the last list URL so detail/form Back returns to the filtered list. Sort field and direction are also written to `localStorage` (`FoodSortPreference`); visiting `/food` without `sort`/`dir` reapplies that browser preference. Clear filters leaves the All/My items tab and sort untouched; it does clear owner.
 
-`FoodFilter.CurrentUserId` is not an authorization check; `GetItemsAsync` returns whatever the filter asks for. Pages require `[Authorize]`.
+`FoodFilter.CurrentUserId` and `FoodFilter.Today` are not serialized. `CurrentUserId` is not an authorization check; `GetItemsAsync` returns whatever the filter asks for. Pages require `[Authorize]`.
+
+## Time
+
+Expiry “today” and displayed timestamps follow the viewer, not UTC calendar midnight. `UserClock` (scoped, one per circuit) resolves a `TimeZoneInfo` in this order: saved `ApplicationUser.TimeZoneId` → browser `Intl` via `wwwroot/js/time-zone.js` → `App:DefaultTimeZone` (`America/Chicago`). Invalid ids fall through. Interactive pages call `ResolveAsync(ClaimsPrincipal)` in `OnInitializedAsync` (prerender is off) and pass `Clock.Today` into `FoodFilter.Today` / `GetDashboardStatsAsync(today)`. Services do not resolve the viewer themselves.
+
+Cards show `FoodDisplay.ExpiryCardLabel` (`Expires in 3 days` / `Expired yesterday`); the absolute date is the hover `title`. Detail uses `ExpirationDetail` (`6 September 2026 (in 3 days)`). `FoodDisplay.Stamp` converts `CreatedAt` / `UpdatedAt` with an offset suffix (`6 Sep 2026, 14:32 (UTC−5)`). Profile (`/Account/Manage`) can pin a zone or leave Automatic (null).
 
 ## Image upload (SPEC_EXTENSIONS §4)
 
@@ -196,13 +203,13 @@ Card, detail, and the form preview fall back to the category plate if a stored o
 
 The mockup's Classical tokens live in `theme.css` (`--color-*`, self-hosted Newsreader / Public Sans). Pages use `fm-*` classes rather than Bootstrap. Account pages share the same primitives; Bootstrap remains loaded for residual template widgets.
 
-Responsive work stays in `theme.css` (grid, flex, media queries). Documented breakpoints are `--bp-tablet: 768px`, `--bp-desktop: 1024px`, `--bp-wide: 1280px`; layout queries use `max-width: 767px` (phone) and `max-width: 1023px` (tablet). Food cards are 1 / 2 / 3 columns at those widths. The main nav is `position: sticky` on all widths. Phone Menu uses a checkbox/label so it works on Interactive Server and static-SSR Account pages; an open menu covers the page with a backdrop that leaves the bar itself opaque. Desktop keeps the horizontal bar: the username is display-only and sits beside a separate Account link. On phone the same Account row is one tap target that includes the username. Account manage pages use a horizontally scrollable tab strip on phone. Phone filters keep Search and the All / My items tabs visible; Category / Shelf / Status / Expiry / Shared sit behind a Filters toggle and open two-across. Food form markup is Photo/AI, then fields, then allowance/Save; CSS grid areas keep the desktop sidebar and put Photo/AI first on phone. Dashboard phone order is Add an item, then utilisation, then the fridge and members. Admin member tables sit in a labelled, keyboard-focusable horizontal scroller so the page itself does not scroll sideways.
+Responsive work stays in `theme.css` (grid, flex, media queries). Documented breakpoints are `--bp-tablet: 768px`, `--bp-desktop: 1024px`, `--bp-wide: 1280px`; layout queries use `max-width: 767px` (phone) and `max-width: 1023px` (tablet). Food cards are 1 / 2 / 3 columns at those widths. The main nav is `position: sticky` on all widths. Phone Menu uses a checkbox/label so it works on Interactive Server and static-SSR Account pages; an open menu covers the page with a backdrop that leaves the bar itself opaque. Desktop keeps the horizontal bar: the username is display-only and sits beside a separate Account link. On phone the same Account row is one tap target that includes the username. Account manage pages use a horizontally scrollable tab strip on phone. Phone filters keep Search and the All / My items tabs visible; Category / Shelf / Owner / Status / Expiry / Shared sit behind a Filters toggle and open two-across. Desktop keeps Search, the five selects, Shared, and Clear on one compact row; tablet (768–1023px) uses two equal rows so Shared is not alone. Food form markup is Photo/AI, then fields, then allowance/Save; CSS grid areas keep the desktop sidebar and put Photo/AI first on phone. After Save, a quota/capacity alert scrolls the page to the top; a missing required field scrolls to that control. Dashboard phone order is Add an item, then utilisation, then the fridge and members. Admin member tables sit in a labelled, keyboard-focusable horizontal scroller so the page itself does not scroll sideways.
 
 `html { scrollbar-gutter: stable; }` keeps the layout from shifting when a vertical scrollbar appears. Dashboard and Food list reserve height with skeletons / `.food-results { min-height: 60vh }` so loading and empty states do not collapse the page.
 
 Long actions (Save, Analyze, detail status) cannot feel instant on a slow Interactive Server circuit: the click itself is a SignalR round-trip. `wwwroot/js/busy-click.js` listens in capture phase for `[data-fm-busy-on-click]` and applies `.is-pending` plus the `data-fm-busy-label` before the circuit answers. It must not set `disabled` or `pointer-events: none` — that cancels the in-flight click/submit before Blazor sees it. The component still owns the real busy flag; a failed validation remounts the submit button (`@key`) so a JS-pending control does not stay stuck.
 
-Owner is shown as a chip on the card plate (`You` when the viewer owns the item), as a tag plus table row on detail, and as the subtitle on dashboard shelf chips. Item names truncate to one line with an ellipsis on cards and fridge chips; the detail page wraps long names.
+Owner is shown as a chip on the card plate (`You` when the viewer owns the item), as a tag plus table row on detail, and as the subtitle on dashboard shelf chips. Dashboard member names link to `/food?owner=…`. Item names truncate to one line with an ellipsis on cards and fridge chips; the detail page wraps long names.
 
 Dashboard shelf remaining is the `FridgeElevation` chip row (chip flex grows with `SizeUnits`; a free-space chip shows leftover units), not a per-shelf progress bar.
 
@@ -216,7 +223,7 @@ Dashboard shelf remaining is the `FridgeElevation` chip row (chip flex grows wit
 
 `SqliteDbFactory` holds one open `Data Source=:memory:` connection and calls `EnsureCreated` once. Each inventory/capacity test seeds a small fridge (Shelf A at capacity 5, Alice at quota 2) so the guards are demonstrable without the production seeder.
 
-`UserAdminServiceTests` and `StartupBootstrapTests` build a real `UserManager` / `RoleManager` on that factory. Inventory tests inject `FakeImageStorage`. `SaveImageTests` uses `LocalImageStorage` plus a temp `IWebHostEnvironment.WebRootPath` and real tiny JPEG/PNG/WebP bytes from ImageSharp. `ImageNormalizerTests` cover EXIF strip, orientation, 2000 px cap, an explicit 1600 px AI cap, and no upscale. `UploadPaths` and `NpgsqlConnectionStrings` are tested as pure helpers. AI tests inject `FakeFoodImageAnalyzer` / a recording analyzer / a stub `HttpMessageHandler`; they never call live Gemini. `AiRateLimiterTests` use a test `TimeProvider`. `AiSuggestionsTests` send an AI-filled `FoodItemForm` through `CreateItemAsync` / `UpdateItemAsync` so quota, capacity, and authorization still apply.
+`UserAdminServiceTests` and `StartupBootstrapTests` build a real `UserManager` / `RoleManager` on that factory. Inventory tests inject `FakeImageStorage`. `SaveImageTests` uses `LocalImageStorage` plus a temp `IWebHostEnvironment.WebRootPath` and real tiny JPEG/PNG/WebP bytes from ImageSharp. `ImageNormalizerTests` cover EXIF strip, orientation, 2000 px cap, an explicit 1600 px AI cap, and no upscale. `UploadPaths`, `NpgsqlConnectionStrings`, `FoodDisplay`, and `UserClock.Resolve` are tested as pure helpers. AI tests inject `FakeFoodImageAnalyzer` / a recording analyzer / a stub `HttpMessageHandler`; they never call live Gemini. `AiRateLimiterTests` use a test `TimeProvider`. `AiSuggestionsTests` send an AI-filled `FoodItemForm` through `CreateItemAsync` / `UpdateItemAsync` so quota, capacity, and authorization still apply.
 
 The SPEC §11 list is the minimum. Add a test in `tests/FridgeManager.Tests` whenever a service rule or filter changes.
 

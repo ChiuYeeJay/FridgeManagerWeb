@@ -43,7 +43,7 @@ else
             </div>
             <h1 class="page-title detail-title">@_item.Name</h1>
             <div class="text-muted" style="font-size:13px;margin-bottom:20px">
-                Added @FoodDisplay.DateLabel(DateOnly.FromDateTime(_item.CreatedAt))
+                Added @FoodDisplay.DateLabel(DateOnly.FromDateTime(Clock.ToLocal(_item.CreatedAt)))
             </div>
             <table class="fm-table" style="margin-bottom:22px">
                 <tbody>
@@ -58,7 +58,7 @@ else
                     </tr>
                     <tr><th>Position note</th><td>@(string.IsNullOrEmpty(_item.PositionNote) ? "—" : _item.PositionNote)</td></tr>
                     <tr><th>Note</th><td>@(string.IsNullOrEmpty(_item.Note) ? "—" : _item.Note)</td></tr>
-                    <tr><th>Last updated</th><td class="fig">@FoodDisplay.UtcStamp(_item.UpdatedAt)</td></tr>
+                    <tr><th>Last updated</th><td class="fig">@FoodDisplay.Stamp(_item.UpdatedAt, Clock.Zone)</td></tr>
                 </tbody>
             </table>
             @if (_canModify)
@@ -103,10 +103,13 @@ else
     [Inject]
     private FoodListState ListState { get; set; } = default!;
 
+    [Inject]
+    private UserClock Clock { get; set; } = default!;
+
     [CascadingParameter]
     private Task<AuthenticationState> AuthState { get; set; } = default!;
 
-    private readonly DateOnly _today = DateOnly.FromDateTime(DateTime.UtcNow);
+    private DateOnly _today;
     private FoodItem? _item;
     private bool _notFound;
     private bool _canModify;
@@ -155,6 +158,8 @@ else
         _error = null;
         _plateFailed = false;
         _user = (await AuthState).User;
+        await Clock.ResolveAsync(_user);
+        _today = Clock.Today;
         _item = await Inventory.GetItemAsync(Id);
         _notFound = _item is null;
         if (_item is null)

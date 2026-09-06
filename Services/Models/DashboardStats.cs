@@ -37,7 +37,7 @@ public sealed class DashboardStats
                         i.SizeUnits,
                         state == ExpiryState.Expired,
                         state == ExpiryState.ExpiringSoon,
-                        FoodDisplay.DateLabel(i.ExpirationDate));
+                        $"{FoodDisplay.DateLabel(i.ExpirationDate)} ({FoodDisplay.RelativeDays(i.ExpirationDate, today)})");
                 })
                 .ToList();
             return new ShelfBand(shelf.Id, shelf.Name, used, shelf.CapacityUnits, chips);

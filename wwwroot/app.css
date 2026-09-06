@@ -12,6 +12,7 @@ h1:focus {
 
 .validation-message {
     color: var(--color-danger);
+    scroll-margin-top: 88px;
 }
 
 .blazor-error-boundary {

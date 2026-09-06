@@ -215,6 +215,7 @@ Rules:
   IUserAdminService.cs / UserAdminService.cs
   ExpiryRules.cs
   UserClaims.cs
+  UserClock.cs
   FoodDisplay.cs
   UploadPaths.cs
   LocalUrls.cs
@@ -250,8 +251,9 @@ public enum ExpiryState  { Normal, ExpiringSoon, Expired }   // computed, never 
 ```csharp
 public class ApplicationUser : IdentityUser
 {
-    public int  ItemQuota { get; set; } = 5;
-    public bool IsActive  { get; set; } = true;
+    public int     ItemQuota  { get; set; } = 5;
+    public bool    IsActive   { get; set; } = true;
+    public string? TimeZoneId { get; set; }   // null = automatic (browser, then App:DefaultTimeZone)
 }
 
 public class Refrigerator
@@ -432,10 +434,10 @@ Task<int>                    GetShelfRemainingAsync(int shelfId);
 Task<int>                    GetUserUsageAsync(string userId);
 Task<List<ShelfUsageDto>>    GetAllShelfUsageAsync();
 Task<List<UserUsageDto>>     GetAllUserUsageAsync();
-Task<DashboardStats>         GetDashboardStatsAsync();
+Task<DashboardStats>         GetDashboardStatsAsync(DateOnly today);
 ```
 
-`GetDashboardStatsAsync` returns all dashboard numbers in a single call. Do not issue one query per statistic.
+`GetDashboardStatsAsync` returns all dashboard numbers in a single call. Do not issue one query per statistic. The caller supplies `today` in the viewer's time zone.
 
 ### 7.4 IUserAdminService
 
@@ -456,10 +458,10 @@ All methods require the `AdminOnly` policy at the page level **and** verify `act
 
 - All filtering happens in the database. Build an `IQueryable`, apply every filter, then `ToListAsync()`.
 - Search is a case-insensitive contains on `Name`. Use `ToLower().Contains` after trimming so the same expression translates to both Npgsql and the SQLite test host. Do not use `ILike`.
-- Compute date thresholds in C## **before** the query so the expression is translatable:
+- Compute date thresholds in C## **before** the query so the expression is translatable. The list page puts the viewer's calendar day on `FoodFilter.Today`; the service falls back to UTC only when that is unset:
 
 ```csharp
-var today = DateOnly.FromDateTime(DateTime.UtcNow);
+var today = filter.Today ?? DateOnly.FromDateTime(DateTime.UtcNow);
 var soon  = today.AddDays(3);
 query = query.Where(f => f.ExpirationDate <= soon && f.ExpirationDate >= today);
 ```
@@ -482,13 +484,13 @@ Requires authentication. Displays:
 - Overall refrigerator utilisation (used units / total capacity of Active items, with a progress bar)
 - Shared item count (Active items only)
 - Per-shelf remaining capacity. A fridge elevation / chip row per shelf is acceptable; a progress bar per shelf is not required
-- Per-user current usage (`used / quota`) for **active** members only
+- Per-user current usage (`used / quota`) for **active** members only. Member names deep-link to `/food?owner={userId}`.
 
 Dashboard stat cells and shelf headers may deep-link into `/food?...` using the same filter query as the list.
 
 ### 8.2 `/food` — Food List
 
-Card grid. Each card shows: image, name, owner, category, expiration date, size, shared badge, expiry-state badge. The card may also show the shelf name.
+Card grid. Each card shows: image, name, owner, category, relative expiration (`Expires in 3 days` / `Expired 2 days ago`), size, shared badge, expiry-state badge. The card may also show the shelf name. Hovering the relative label shows the absolute date.
 
 Expiry badge colours: Normal = neutral, ExpiringSoon = warning, Expired = danger.
 
@@ -501,6 +503,7 @@ Filter bar, applied server-side, no submit button:
 - Shared items (toggle)
 - Category (select)
 - Shelf (select)
+- Owner (select, after Shelf and before Status). Choosing an owner switches the tab back to All. The My items tab clears owner.
 - Status (select, defaults to `Active`)
 - Expiry state (select: any / Normal / Expiring soon / Expired)
 - Clear filters (resets the bar; keeps the All / My items tab and sort)
@@ -510,7 +513,7 @@ Filter state lives in the `/food?...` query string. Changing a control navigates
 
 ### 8.3 `/food/{Id:int}` — Food Detail
 
-Displays all fields including `PositionNote` and `Note`.
+Displays all fields including `PositionNote` and `Note`. Expiration is the calendar date with a parenthetical day count (`6 September 2026 (in 3 days)`). Added and last-updated timestamps use the viewer's time zone.
 
 If the current user is the owner or an Admin, show: **Edit**, **Mark as Consumed**, **Mark as Missing**, **Mark as Discarded**. Status buttons are hidden when the item is not `Active`.
 
@@ -552,6 +555,8 @@ Upload rules:
 There is no public self-registration. `/Account/Register` and `/Account/RegisterConfirmation` redirect to login and must not create a user or show a confirmation link. Members are created by an administrator at `/admin/users`.
 
 Login is email + password (`[EmailAddress]`). Password sign-in uses lockout (5 failures, 15 minutes). External login may sign in an **existing linked** account only; it must not create an account. Local redirect targets (`ReturnUrl`, logout) must be sanitised to same-origin relative paths.
+
+Profile (`/Account/Manage`) can set a time zone, or leave it on Automatic (browser). `null` `TimeZoneId` means Automatic. The fallback when neither a saved zone nor the browser is available is `App:DefaultTimeZone` (`America/Chicago`).
 
 ------
 

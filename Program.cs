@@ -65,6 +65,7 @@ builder.Services.Configure<ForwardedHeadersOptions>(o =>
 });
 builder.Services.AddHealthChecks();
 builder.Services.Configure<SeedOptions>(builder.Configuration.GetSection(SeedOptions.SectionName));
+builder.Services.Configure<AppOptions>(builder.Configuration.GetSection(AppOptions.SectionName));
 AddImageStorage(builder);
 AddGemini(builder);
 
@@ -74,6 +75,7 @@ builder.Services.AddScoped<ICapacityService, CapacityService>();
 builder.Services.AddScoped<IUserAdminService, UserAdminService>();
 builder.Services.AddScoped<FoodListState>();
 builder.Services.AddScoped<FoodSortPreference>();
+builder.Services.AddScoped<UserClock>();
 
 var app = builder.Build();
 

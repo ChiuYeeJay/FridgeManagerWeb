@@ -22,6 +22,7 @@ public class AppDbContext(DbContextOptions<AppDbContext> options)
         {
             entity.Property(u => u.ItemQuota).HasDefaultValue(5);
             entity.Property(u => u.IsActive).HasDefaultValue(true);
+            entity.Property(u => u.TimeZoneId).HasMaxLength(64);
         });
 
         builder.Entity<Refrigerator>(entity =>

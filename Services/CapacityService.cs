@@ -84,7 +84,7 @@ public class CapacityService(IDbContextFactory<AppDbContext> factory) : ICapacit
             .ToList();
     }
 
-    public async Task<DashboardStats> GetDashboardStatsAsync()
+    public async Task<DashboardStats> GetDashboardStatsAsync(DateOnly today)
     {
         await using var db = await factory.CreateDbContextAsync();
 
@@ -101,7 +101,6 @@ public class CapacityService(IDbContextFactory<AppDbContext> factory) : ICapacit
             .Where(u => u.IsActive)
             .ToListAsync();
 
-        var today = DateOnly.FromDateTime(DateTime.UtcNow);
         return DashboardStats.From(shelves, users, today);
     }
 }

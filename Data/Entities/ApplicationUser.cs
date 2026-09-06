@@ -6,4 +6,5 @@ public class ApplicationUser : IdentityUser
 {
     public int ItemQuota { get; set; } = 5;
     public bool IsActive { get; set; } = true;
+    public string? TimeZoneId { get; set; }
 }

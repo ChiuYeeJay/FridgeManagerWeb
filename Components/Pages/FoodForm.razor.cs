@@ -5,11 +5,12 @@ using Microsoft.AspNetCore.Components;
 using Microsoft.AspNetCore.Components.Authorization;
 using Microsoft.AspNetCore.Components.Forms;
 using Microsoft.Extensions.Options;
+using Microsoft.JSInterop;
 using System.Security.Claims;
 
 namespace FridgeManager.Components.Pages;
 
-public partial class FoodForm : IDisposable
+public partial class FoodForm : IDisposable, IAsyncDisposable
 {
     [Parameter]
     public int Id { get; set; }
@@ -34,6 +35,12 @@ public partial class FoodForm : IDisposable
 
     [Inject]
     private IImageStorage ImageStorage { get; set; } = default!;
+
+    [Inject]
+    private UserClock Clock { get; set; } = default!;
+
+    [Inject]
+    private IJSRuntime JS { get; set; } = default!;
 
     [CascadingParameter]
     private Task<AuthenticationState> AuthState { get; set; } = default!;
@@ -66,6 +73,8 @@ public partial class FoodForm : IDisposable
     private bool _dragging;
     private int _dragDepth;
     private CancellationTokenSource? _analyzeCts;
+    private FormScroll? _scroll;
+    private string? _scrollTarget;
 
     private bool IsEdit => Id > 0;
 
@@ -135,6 +144,7 @@ public partial class FoodForm : IDisposable
     protected override async Task OnInitializedAsync()
     {
         _user = (await AuthState).User;
+        await Clock.ResolveAsync(_user);
         await RefreshCapacityAsync();
 
         if (IsEdit)
@@ -170,7 +180,7 @@ public partial class FoodForm : IDisposable
         }
         else
         {
-            Form.ExpirationDate = DateOnly.FromDateTime(DateTime.UtcNow);
+            Form.ExpirationDate = Clock.Today;
             Form.SizeUnits = 1;
             Form.ShelfId = _shelves.FirstOrDefault()?.ShelfId ?? 0;
         }
@@ -208,13 +218,13 @@ public partial class FoodForm : IDisposable
 
     private int NameLength => Form.Name?.Length ?? 0;
 
-    private DateOnly TodayUtc => DateOnly.FromDateTime(DateTime.UtcNow);
+    private DateOnly Today => Clock.Today;
 
-    private bool IsExpiryDays(int days) => Form.ExpirationDate == TodayUtc.AddDays(days);
+    private bool IsExpiryDays(int days) => Form.ExpirationDate == Today.AddDays(days);
 
-    private bool IsExpiryMonths(int months) => Form.ExpirationDate == TodayUtc.AddMonths(months);
+    private bool IsExpiryMonths(int months) => Form.ExpirationDate == Today.AddMonths(months);
 
-    private bool IsExpiryYears(int years) => Form.ExpirationDate == TodayUtc.AddYears(years);
+    private bool IsExpiryYears(int years) => Form.ExpirationDate == Today.AddYears(years);
 
     private static string ExpiryPresetClass(bool selected)
         => selected ? "fm-btn fm-btn-primary fm-btn-sm" : "fm-btn fm-btn-ghost fm-btn-sm";
@@ -229,19 +239,19 @@ public partial class FoodForm : IDisposable
 
     private void SetExpiryDays(int days)
     {
-        Form.ExpirationDate = DateOnly.FromDateTime(DateTime.UtcNow).AddDays(days);
+        Form.ExpirationDate = Today.AddDays(days);
         MarkUserFilled(nameof(FoodItemForm.ExpirationDate));
     }
 
     private void SetExpiryMonths(int months)
     {
-        Form.ExpirationDate = DateOnly.FromDateTime(DateTime.UtcNow).AddMonths(months);
+        Form.ExpirationDate = Today.AddMonths(months);
         MarkUserFilled(nameof(FoodItemForm.ExpirationDate));
     }
 
     private void SetExpiryYears(int years)
     {
-        Form.ExpirationDate = DateOnly.FromDateTime(DateTime.UtcNow).AddYears(years);
+        Form.ExpirationDate = Today.AddYears(years);
         MarkUserFilled(nameof(FoodItemForm.ExpirationDate));
     }
 
@@ -358,7 +368,31 @@ public partial class FoodForm : IDisposable
         _aiError = null;
     }
 
-    private void OnInvalidSave() => _submitEpoch++;
+    private void OnInvalidSave()
+    {
+        _submitEpoch++;
+        _scrollTarget = "invalid";
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (_scrollTarget is null)
+        {
+            return;
+        }
+
+        _scroll ??= new FormScroll(JS);
+        var target = _scrollTarget;
+        _scrollTarget = null;
+        if (target == "alert")
+        {
+            await _scroll.ToTopAsync();
+        }
+        else
+        {
+            await _scroll.ToInvalidAsync();
+        }
+    }
 
     private async Task FlushBusyAsync()
     {
@@ -435,6 +469,15 @@ public partial class FoodForm : IDisposable
         _analyzeCts?.Dispose();
     }
 
+    public async ValueTask DisposeAsync()
+    {
+        Dispose();
+        if (_scroll is not null)
+        {
+            await _scroll.DisposeAsync();
+        }
+    }
+
     private static bool IsAllowedImageType(string? contentType)
         => contentType is "image/jpeg" or "image/png" or "image/webp";
 
@@ -463,6 +506,7 @@ public partial class FoodForm : IDisposable
                 if (!uploaded.Success || uploaded.Value is null)
                 {
                     _error = uploaded.Error;
+                    _scrollTarget = "alert";
                     await RefreshCapacityAsync();
                     ReleaseSave();
                     return;
@@ -478,6 +522,7 @@ public partial class FoodForm : IDisposable
                 if (!result.Success)
                 {
                     _error = result.Error;
+                    _scrollTarget = "alert";
                     await RollbackUploadAsync(uploadedPath, previousImagePath);
                     return;
                 }
@@ -491,6 +536,7 @@ public partial class FoodForm : IDisposable
             if (!created.Success || created.Value is null)
             {
                 _error = created.Error;
+                _scrollTarget = "alert";
                 await RollbackUploadAsync(uploadedPath, previousImagePath);
                 return;
             }

@@ -64,6 +64,11 @@ public class InventoryService(
             query = query.Where(f => f.ShelfId == shelfId);
         }
 
+        if (!string.IsNullOrEmpty(filter.OwnerId))
+        {
+            query = query.Where(f => f.OwnerId == filter.OwnerId);
+        }
+
         if (filter.Status is FoodStatus status)
         {
             query = query.Where(f => f.Status == status);
@@ -71,7 +76,7 @@ public class InventoryService(
 
         if (filter.Expiry is ExpiryState expiry)
         {
-            var today = DateOnly.FromDateTime(DateTime.UtcNow);
+            var today = filter.Today ?? DateOnly.FromDateTime(DateTime.UtcNow);
             var soon = today.AddDays(3);
 
             query = expiry switch

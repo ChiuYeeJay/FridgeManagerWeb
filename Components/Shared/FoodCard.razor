@@ -15,8 +15,8 @@
         </div>
         <div class="food-card-body">
             <span>@Item.Category · @FoodDisplay.SizeLabel(Item.SizeUnits)</span>
-            <span class="fig @(Expired ? "is-expired" : null)">
-                @(Expired ? "Expired" : "Expires") @FoodDisplay.DateLabel(Item.ExpirationDate)
+            <span class="fig @(Expired ? "is-expired" : null)" title="@FoodDisplay.DateLabel(Item.ExpirationDate)">
+                @FoodDisplay.ExpiryCardLabel(Item.ExpirationDate, Today)
             </span>
         </div>
     </a>

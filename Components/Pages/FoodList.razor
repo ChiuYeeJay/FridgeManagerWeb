@@ -18,6 +18,7 @@
 
 <FoodFilterBar Filter="_filter"
                Shelves="_shelves"
+               Members="_members"
                MatchedCount="_items?.Count ?? 0"
                ActiveCount="_filter.MineOnly ? _myActiveCount : _activeCount"
                FilterChanged="OnFilterChangedAsync" />
@@ -72,6 +73,9 @@
     [Inject]
     private FoodSortPreference SortPref { get; set; } = default!;
 
+    [Inject]
+    private UserClock Clock { get; set; } = default!;
+
     [CascadingParameter]
     private Task<AuthenticationState> AuthState { get; set; } = default!;
 
@@ -90,6 +94,9 @@
     [SupplyParameterFromQuery(Name = "shelf")]
     public string? Shelf { get; set; }
 
+    [SupplyParameterFromQuery(Name = "owner")]
+    public string? Owner { get; set; }
+
     [SupplyParameterFromQuery(Name = "status")]
     public string? Status { get; set; }
 
@@ -103,9 +110,10 @@
     public string? Dir { get; set; }
 
     private FoodFilter _filter = new();
-    private readonly DateOnly _today = DateOnly.FromDateTime(DateTime.UtcNow);
+    private DateOnly _today;
     private List<FoodItem>? _items;
     private IReadOnlyList<ShelfUsageDto> _shelves = [];
+    private IReadOnlyList<UserUsageDto> _members = [];
     private int _activeCount;
     private int _myActiveCount;
     private ClaimsPrincipal _user = new();
@@ -115,6 +123,8 @@
     {
         _user = (await AuthState).User;
         _userId = UserClaims.GetUserId(_user);
+        await Clock.ResolveAsync(_user);
+        _today = Clock.Today;
         _shelves = await Capacity.GetAllShelfUsageAsync();
         await RefreshCountsAsync();
     }
@@ -127,7 +137,7 @@
             _userId = UserClaims.GetUserId(_user);
         }
 
-        _filter = FoodFilter.FromQuery(Q, Mine, Shared, Category, Shelf, Status, Expiry, Sort, Dir, _userId);
+        _filter = FoodFilter.FromQuery(Q, Mine, Shared, Category, Shelf, Status, Expiry, Sort, Dir, _userId, Owner, _today);
         ListState.LastListUrl = _filter.ToPath();
         await ReloadAsync();
     }
@@ -180,6 +190,11 @@
     private Task SetMineAsync(bool mine)
     {
         _filter.MineOnly = mine;
+        if (mine)
+        {
+            _filter.OwnerId = null;
+        }
+
         return OnFilterChangedAsync();
     }
 
@@ -191,6 +206,7 @@
     private async Task RefreshCountsAsync()
     {
         var usage = await Capacity.GetAllUserUsageAsync();
+        _members = usage;
         _activeCount = usage.Sum(u => u.Used);
         _myActiveCount = usage.FirstOrDefault(u => u.UserId == _userId)?.Used ?? 0;
     }

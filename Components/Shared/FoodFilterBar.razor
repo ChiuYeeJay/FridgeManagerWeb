@@ -36,6 +36,18 @@
                     }
                 </select>
             </div>
+            <div class="fm-field filter-owner">
+                <label for="food-owner">Owner</label>
+                <select id="food-owner" class="fm-input" value="@(Filter.OwnerId ?? "")" @onchange="OnOwner">
+                    <option value="">All owners</option>
+                    @foreach (var member in Members)
+                    {
+                        <option @key="member.UserId" value="@member.UserId">
+                            @(member.IsActive ? member.Name : $"{member.Name} (disabled)")
+                        </option>
+                    }
+                </select>
+            </div>
             <div class="fm-field filter-status">
                 <label for="food-status">Status</label>
                 <select id="food-status" class="fm-input" value="@Filter.Status" @onchange="OnStatus">
@@ -127,6 +139,9 @@
     public IReadOnlyList<ShelfUsageDto> Shelves { get; set; } = [];
 
     [Parameter]
+    public IReadOnlyList<UserUsageDto> Members { get; set; } = [];
+
+    [Parameter]
     public int MatchedCount { get; set; }
 
     [Parameter]
@@ -143,6 +158,7 @@
         => Filter.SharedOnly
            || Filter.Category is not null
            || Filter.ShelfId is not null
+           || !string.IsNullOrEmpty(Filter.OwnerId)
            || Filter.Status != FoodStatus.Active
            || Filter.Expiry is not null;
 
@@ -189,6 +205,14 @@
     private Task OnShelf(ChangeEventArgs e)
     {
         Filter.ShelfId = int.TryParse(e.Value?.ToString(), out var id) ? id : null;
+        return NotifyImmediate();
+    }
+
+    private Task OnOwner(ChangeEventArgs e)
+    {
+        var value = e.Value?.ToString();
+        Filter.OwnerId = string.IsNullOrWhiteSpace(value) ? null : value;
+        Filter.MineOnly = false;
         return NotifyImmediate();
     }
 

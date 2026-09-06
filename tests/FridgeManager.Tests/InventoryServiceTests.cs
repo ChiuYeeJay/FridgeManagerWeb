@@ -228,7 +228,7 @@ public sealed class InventoryServiceTests
     public async Task GetItemsAsync_ExpiryExpired_ReturnsOnlyPastDates()
     {
         using var host = new ServiceHost();
-        var today = DateOnly.FromDateTime(DateTime.UtcNow);
+        var today = new DateOnly(2026, 9, 6);
         await using (var db = await host.Factory.CreateDbContextAsync())
         {
             (await db.FoodItems.SingleAsync(f => f.Id == host.Seed.AlicesBreadId)).ExpirationDate = today.AddDays(-1);
@@ -236,7 +236,7 @@ public sealed class InventoryServiceTests
             await db.SaveChangesAsync();
         }
 
-        var items = await host.Inventory.GetItemsAsync(new FoodFilter { Expiry = ExpiryState.Expired });
+        var items = await host.Inventory.GetItemsAsync(new FoodFilter { Expiry = ExpiryState.Expired, Today = today });
 
         Assert.Equal(["Bread"], items.Select(i => i.Name).ToArray());
     }
@@ -245,7 +245,7 @@ public sealed class InventoryServiceTests
     public async Task GetItemsAsync_ExpiryExpiringSoon_ReturnsTodayThroughPlusThree()
     {
         using var host = new ServiceHost();
-        var today = DateOnly.FromDateTime(DateTime.UtcNow);
+        var today = new DateOnly(2026, 9, 6);
         await using (var db = await host.Factory.CreateDbContextAsync())
         {
             (await db.FoodItems.SingleAsync(f => f.Id == host.Seed.AlicesBreadId)).ExpirationDate = today.AddDays(-1);
@@ -253,7 +253,7 @@ public sealed class InventoryServiceTests
             await db.SaveChangesAsync();
         }
 
-        var items = await host.Inventory.GetItemsAsync(new FoodFilter { Expiry = ExpiryState.ExpiringSoon });
+        var items = await host.Inventory.GetItemsAsync(new FoodFilter { Expiry = ExpiryState.ExpiringSoon, Today = today });
 
         Assert.Equal(["Juice"], items.Select(i => i.Name).ToArray());
     }
@@ -262,7 +262,7 @@ public sealed class InventoryServiceTests
     public async Task GetItemsAsync_ExpiryNormal_ReturnsBeyondSoonWindow()
     {
         using var host = new ServiceHost();
-        var today = DateOnly.FromDateTime(DateTime.UtcNow);
+        var today = new DateOnly(2026, 9, 6);
         await using (var db = await host.Factory.CreateDbContextAsync())
         {
             (await db.FoodItems.SingleAsync(f => f.Id == host.Seed.AlicesBreadId)).ExpirationDate = today.AddDays(-1);
@@ -270,9 +270,20 @@ public sealed class InventoryServiceTests
             await db.SaveChangesAsync();
         }
 
-        var items = await host.Inventory.GetItemsAsync(new FoodFilter { Expiry = ExpiryState.Normal });
+        var items = await host.Inventory.GetItemsAsync(new FoodFilter { Expiry = ExpiryState.Normal, Today = today });
 
         Assert.Equal(["Milk", "Baking soda"], items.Select(i => i.Name).ToArray());
+    }
+
+    [Fact]
+    public async Task GetItemsAsync_OwnerId_ReturnsThatOwnersItems()
+    {
+        using var host = new ServiceHost();
+
+        var items = await host.Inventory.GetItemsAsync(new FoodFilter { OwnerId = host.Seed.AliceId });
+
+        Assert.Equal(["Bread", "Juice"], items.Select(i => i.Name).ToArray());
+        Assert.All(items, i => Assert.Equal(host.Seed.AliceId, i.OwnerId));
     }
 
     [Fact]

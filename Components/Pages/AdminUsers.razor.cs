@@ -15,6 +15,9 @@ public partial class AdminUsers
     [Inject]
     private ICapacityService Capacity { get; set; } = default!;
 
+    [Inject]
+    private UserClock Clock { get; set; } = default!;
+
     [CascadingParameter]
     private Task<AuthenticationState> AuthState { get; set; } = default!;
 
@@ -86,7 +89,8 @@ public partial class AdminUsers
         _quotaGranted = _users.Where(u => u.IsActive).Sum(u => u.Quota);
         _held = _users.Sum(u => u.ActiveCount);
 
-        var stats = await Capacity.GetDashboardStatsAsync();
+        await Clock.ResolveAsync(_actor);
+        var stats = await Capacity.GetDashboardStatsAsync(Clock.Today);
         _usedUnits = stats.UsedUnits;
         _totalCapacity = stats.TotalCapacity;
     }

@@ -24,6 +24,32 @@ public static class FoodDisplay
         _ => $"{sizeUnits} units"
     };
 
+    public static string RelativeDays(DateOnly date, DateOnly today)
+    {
+        var days = date.DayNumber - today.DayNumber;
+        return days switch
+        {
+            0 => "today",
+            1 => "tomorrow",
+            -1 => "yesterday",
+            > 1 => $"in {days} days",
+            _ => $"{Math.Abs(days)} days ago"
+        };
+    }
+
+    public static string ExpiryCardLabel(DateOnly date, DateOnly today)
+    {
+        var days = date.DayNumber - today.DayNumber;
+        return days switch
+        {
+            > 1 => $"Expires in {days} days",
+            1 => "Expires tomorrow",
+            0 => "Expires today",
+            -1 => "Expired yesterday",
+            _ => $"Expired {Math.Abs(days)} days ago"
+        };
+    }
+
     public static string ExpirationDetail(DateOnly date, DateOnly today)
     {
         var label = date.ToString("d MMMM yyyy", English);
@@ -35,11 +61,30 @@ public static class FoodDisplay
             1 => "tomorrow",
             _ => $"in {days} days"
         };
-        return $"{label} · {relative}";
+        return $"{label} ({relative})";
     }
 
-    public static string UtcStamp(DateTime utc)
-        => utc.ToString("d MMM yyyy, HH:mm UTC", English);
+    public static string Stamp(DateTime utc, TimeZoneInfo zone)
+    {
+        var utcValue = utc.Kind switch
+        {
+            DateTimeKind.Utc => utc,
+            DateTimeKind.Local => utc.ToUniversalTime(),
+            _ => DateTime.SpecifyKind(utc, DateTimeKind.Utc)
+        };
+        var local = TimeZoneInfo.ConvertTimeFromUtc(utcValue, zone);
+        var offset = zone.GetUtcOffset(utcValue);
+        return $"{local.ToString("d MMM yyyy, HH:mm", English)} ({FormatOffset(offset)})";
+    }
+
+    private static string FormatOffset(TimeSpan offset)
+    {
+        var sign = offset < TimeSpan.Zero ? "−" : "+";
+        var abs = offset.Duration();
+        return abs.Minutes == 0
+            ? $"UTC{sign}{abs.Hours}"
+            : $"UTC{sign}{abs.Hours}:{abs.Minutes:D2}";
+    }
 
     public static string CategoryImage(FoodCategory category)
         => $"/images/categories/{category.ToString().ToLowerInvariant()}.webp";

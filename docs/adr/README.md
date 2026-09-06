@@ -9,3 +9,4 @@ Accepted product decisions that changed or filled gaps in [SPEC.md](../SPEC.md).
 | [003](003-upload-trust-boundary.md) | Upload trust boundary |
 | [004](004-theme-over-bootstrap.md) | theme.css over Bootstrap utilities |
 | [005](005-email-sign-in.md) | Email as sign-in identifier |
+| [006](006-viewer-time-zone.md) | Viewer time zone for “today” and timestamps |
