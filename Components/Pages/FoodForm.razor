@@ -66,7 +66,7 @@ else
                                @ondragenter="OnPhotoDragEnter"
                                @ondragleave="OnPhotoDragLeave" />
                 </div>
-                <label @key="_photoEpoch"
+                <label @key="@($"photo-{_photoEpoch}")"
                        class="fm-btn fm-btn-secondary fm-btn-block form-photo-choose @(PhotoLocked ? "is-pending" : null)"
                        for="item-photo">@(_photoBusy ? "Reading photo…" : "Choose file…")</label>
                 @if (_photoError is not null)
@@ -81,7 +81,7 @@ else
                         analysis. Do not use sensitive or confidential images. Always review
                         AI-generated suggestions before saving.
                     </p>
-                    <button @key="_analyzeEpoch"
+                    <button @key="@($"analyze-{_analyzeEpoch}")"
                             type="button"
                             class="fm-btn fm-btn-secondary fm-btn-block @(_analyzing ? "is-pending" : null)"
                             disabled="@FormBusy"
@@ -234,7 +234,7 @@ else
                     </div>
                 }
                 <div class="form-actions">
-                    <button @key="_submitEpoch"
+                    <button @key="@($"submit-{_submitEpoch}")"
                             class="fm-btn fm-btn-primary fm-btn-block @(_saving ? "is-pending" : null)"
                             type="submit"
                             disabled="@FormBusy"

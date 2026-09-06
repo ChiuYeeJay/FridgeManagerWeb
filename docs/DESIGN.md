@@ -257,11 +257,6 @@ Accepted product decisions now live in the spec and in [adr/](adr/). Gemini mode
 - `DbSeeder.SeedDemoDataAsync` may delete leftover `admin@example.com` when that account owns no food items, and may shorten email-shaped usernames to the local-part. That is seed hygiene (SPEC §6.5). It is not a product delete path.
 - `FakeFoodImageAnalyzer` returns a fixed sample (`Greek Yogurt` / `Snack` / no date / size 1) when `Gemini:Enabled` is false. The create form does not render Analyze in that case, so the fake is for tests and for any stray service call.
 
-### Open follow-ups (not accepted; do not write into the spec)
-
-- `DbSeeder.EnsureUserAsync` still appends a debug line to `.cursor/debug-0cb97a.log`. Remove that instrumentation; it is not product behaviour.
-- `AdminUsers.razor` lede currently says disabling a member “hides them from owner lists”. The Owner select does not; fix the copy.
-
 ## Known limitations (do not “fix”)
 
 Do not “fix”: capacity check race, single Interactive Server instance (no Redis / sticky-session scale-out), no audit trail, approximate size units, disable delay up to 30 minutes, Identity template remnants.
