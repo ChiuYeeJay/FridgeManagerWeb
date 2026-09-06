@@ -34,6 +34,12 @@ public sealed class FoodDisplayTests
         => Assert.Equal(expected, FoodDisplay.ExpirationDetail(new DateOnly(year, month, day), Today));
 
     [Fact]
+    public void SizeHint_DescribesGrabTestWithoutExamples()
+        => Assert.Equal(
+            "How you’d pick it up: both palms wrap it (1), one hand lifts it (2), both hands (3).",
+            FoodDisplay.SizeHint);
+
+    [Fact]
     public void Stamp_ConvertsUtcToAmericaChicagoInDaylightTime()
     {
         var zone = TimeZoneInfo.FindSystemTimeZoneById("America/Chicago");

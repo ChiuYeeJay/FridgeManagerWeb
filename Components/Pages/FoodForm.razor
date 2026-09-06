@@ -43,23 +43,32 @@ else
         <div class="form-grid">
             <aside class="form-sidebar-photo">
                 <h5>Photo</h5>
-                <div class="form-plate form-plate-picker @(_dragging ? "is-dragging" : null)">
+                <div class="@PlatePickerClass">
                     @if (PhotoSrc is not null)
                     {
                         <img src="@PhotoSrc" alt="" @onerror="OnPhotoError" />
                     }
-                    else
+                    else if (!_photoBusy)
                     {
                         <span class="form-plate-hint">DROP A PHOTO<br>or choose a file</span>
+                    }
+                    @if (_photoBusy)
+                    {
+                        <span class="form-plate-hint form-plate-busy">Reading photo…</span>
                     }
                     <InputFile id="item-photo"
                                class="form-plate-input"
                                accept=".jpg,.jpeg,.png,.webp,image/jpeg,image/png,image/webp"
+                               disabled="@PhotoLocked"
+                               data-fm-busy-on-change
+                               data-fm-busy-label="Reading photo…"
                                OnChange="OnPhotoSelected"
                                @ondragenter="OnPhotoDragEnter"
                                @ondragleave="OnPhotoDragLeave" />
                 </div>
-                <label class="fm-btn fm-btn-secondary fm-btn-block form-photo-choose" for="item-photo">Choose file…</label>
+                <label @key="_photoEpoch"
+                       class="fm-btn fm-btn-secondary fm-btn-block form-photo-choose @(PhotoLocked ? "is-pending" : null)"
+                       for="item-photo">@(_photoBusy ? "Reading photo…" : "Choose file…")</label>
                 @if (_photoError is not null)
                 {
                     <div class="field-error">@_photoError</div>
@@ -128,12 +137,13 @@ else
                             }
                         </div>
                         <InputRadioGroup @bind-Value="Form.SizeUnits" @bind-Value:after="MarkUserSize">
-                            <div class="@SizeSegClass">
+                            <div class="@SizeSegClass" role="radiogroup" aria-describedby="size-hint">
                                 <label class="fm-seg-opt"><InputRadio Value="@(1)" />Small · 1</label>
                                 <label class="fm-seg-opt"><InputRadio Value="@(2)" />Medium · 2</label>
                                 <label class="fm-seg-opt"><InputRadio Value="@(3)" />Large · 3</label>
                             </div>
                         </InputRadioGroup>
+                        <div id="size-hint" class="text-muted fm-field-hint">@FoodDisplay.SizeHint</div>
                         <ValidationMessage For="() => Form.SizeUnits" />
                     </div>
                 </div>

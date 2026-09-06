@@ -1120,6 +1120,27 @@ textarea.fm-input {
     outline-offset: -2px;
 }
 
+.form-plate-picker.is-busy,
+.form-plate-picker.is-pending {
+    cursor: not-allowed;
+    opacity: 0.7;
+}
+
+.form-plate-picker.is-busy .form-plate-input,
+.form-plate-picker.is-pending .form-plate-input {
+    cursor: not-allowed;
+}
+
+.form-plate-busy {
+    position: absolute;
+    inset: 0;
+    z-index: 2;
+    display: grid;
+    place-items: center;
+    pointer-events: none;
+    background: color-mix(in srgb, var(--color-neutral-200) 55%, transparent);
+}
+
 .form-plate-input {
     position: absolute;
     inset: 0;
@@ -1147,7 +1168,8 @@ textarea.fm-input {
     margin-top: 10px;
 }
 
-.form-photo-hint {
+.form-photo-hint,
+.fm-field-hint {
     font-size: 11px;
     margin-top: 8px;
 }

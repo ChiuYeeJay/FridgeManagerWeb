@@ -72,6 +72,8 @@ public partial class FoodForm : IDisposable, IAsyncDisposable
     private string? _photoError;
     private bool _dragging;
     private int _dragDepth;
+    private bool _photoBusy;
+    private int _photoEpoch;
     private CancellationTokenSource? _analyzeCts;
     private FormScroll? _scroll;
     private string? _scrollTarget;
@@ -101,7 +103,33 @@ public partial class FoodForm : IDisposable, IAsyncDisposable
 
     private bool ShowAi => !IsEdit && Gemini.Value.Enabled && _pendingBytes is not null;
 
-    private bool FormBusy => _saving || _analyzing;
+    private bool FormBusy => _saving || _analyzing || _photoBusy;
+
+    private bool PhotoLocked => FormBusy;
+
+    private string PlatePickerClass
+    {
+        get
+        {
+            var classes = "form-plate form-plate-picker";
+            if (_dragging)
+            {
+                classes += " is-dragging";
+            }
+
+            if (PhotoLocked)
+            {
+                classes += " is-busy";
+            }
+
+            if (_photoBusy)
+            {
+                classes += " is-pending";
+            }
+
+            return classes;
+        }
+    }
 
     private int UsedPercent
     {
@@ -261,12 +289,24 @@ public partial class FoodForm : IDisposable, IAsyncDisposable
 
     private void OnPhotoDragEnter()
     {
+        if (PhotoLocked)
+        {
+            return;
+        }
+
         _dragDepth++;
         _dragging = true;
     }
 
     private void OnPhotoDragLeave()
     {
+        if (PhotoLocked)
+        {
+            _dragging = false;
+            _dragDepth = 0;
+            return;
+        }
+
         _dragDepth = Math.Max(0, _dragDepth - 1);
         if (_dragDepth == 0)
         {
@@ -277,7 +317,6 @@ public partial class FoodForm : IDisposable, IAsyncDisposable
     private async Task OnPhotoSelected(InputFileChangeEventArgs e)
     {
         var file = e.File;
-        _photoError = null;
         _previewFailed = false;
         _dragging = false;
         _dragDepth = 0;
@@ -290,9 +329,13 @@ public partial class FoodForm : IDisposable, IAsyncDisposable
             _pendingBytes = null;
             _pendingContentType = null;
             _previewUrl = null;
+            _photoEpoch++;
             return;
         }
 
+        _photoBusy = true;
+        _photoError = null;
+        await FlushBusyAsync();
         try
         {
             await using var stream = file.OpenReadStream(InventoryService.MaxImageBytes);
@@ -311,6 +354,11 @@ public partial class FoodForm : IDisposable, IAsyncDisposable
             _pendingBytes = null;
             _pendingContentType = null;
             _previewUrl = null;
+        }
+        finally
+        {
+            _photoBusy = false;
+            _photoEpoch++;
         }
     }
 

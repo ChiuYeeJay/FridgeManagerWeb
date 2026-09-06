@@ -24,6 +24,9 @@ public static class FoodDisplay
         _ => $"{sizeUnits} units"
     };
 
+    public const string SizeHint =
+        "How you’d pick it up: both palms wrap it (1), one hand lifts it (2), both hands (3).";
+
     public static string RelativeDays(DateOnly date, DateOnly today)
     {
         var days = date.DayNumber - today.DayNumber;
