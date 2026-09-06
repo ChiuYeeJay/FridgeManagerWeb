@@ -21,12 +21,17 @@ public static class StartupBootstrap
         if (admins.Count == 0)
         {
             await CreateBootstrapAdminAsync(users, env, options, logger);
+            admins = await users.GetUsersInRoleAsync("Admin");
         }
 
         if (options.DemoData)
         {
             await using var db = await factory.CreateDbContextAsync();
-            if (!await db.FoodItems.AnyAsync())
+            var hasItems = await db.FoodItems.AnyAsync();
+            // #region agent log
+            try { System.IO.File.AppendAllText("/Users/cyc/Desktop/coding/FridgeManager/.cursor/debug-0cb97a.log", System.Text.Json.JsonSerializer.Serialize(new { sessionId = "0cb97a", runId = "post-fix", hypothesisId = "A", location = "StartupBootstrap.RunAsync", message = "demo-seed-gate", data = new { adminCount = admins.Count, firstAdminUserName = admins.FirstOrDefault()?.UserName, firstAdminEmail = admins.FirstOrDefault()?.Email, hasItems, demoData = options.DemoData }, timestamp = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds() }) + "\n"); } catch { }
+            // #endregion
+            if (!hasItems)
             {
                 await DbSeeder.SeedDemoDataAsync(services);
             }

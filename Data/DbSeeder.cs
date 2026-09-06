@@ -172,6 +172,18 @@ public static class DbSeeder
         string role)
     {
         var user = await users.FindByEmailAsync(email);
+        var foundByEmail = user is not null;
+        if (user is null)
+        {
+            // Bootstrap Admin may already own this username with a different email
+            // (Seed__AdminUserName=admin + a personal Seed__AdminEmail).
+            user = await users.FindByNameAsync(userName);
+        }
+
+        // #region agent log
+        try { System.IO.File.AppendAllText("/Users/cyc/Desktop/coding/FridgeManager/.cursor/debug-0cb97a.log", System.Text.Json.JsonSerializer.Serialize(new { sessionId = "0cb97a", runId = "post-fix", hypothesisId = "A", location = "DbSeeder.EnsureUserAsync", message = "ensure-user", data = new { email, userName, foundByEmail, reusedByUserName = user is not null && !foundByEmail }, timestamp = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds() }) + "\n"); } catch { }
+        // #endregion
+
         if (user is null)
         {
             user = new ApplicationUser

@@ -95,14 +95,19 @@ Render Blueprint reads `render.yaml` from the repository root, so make sure that
 
 | Field | Recommended Value |
 |---|---|
-| `Seed__AdminUserName` | Display name, e.g. `admin` |
-| `Seed__AdminEmail` | An email address you can receive mail at, or `admin@fridge.local` |
+| `Seed__AdminUserName` | Identity **user name** (also the display name; it must be unique). Use `admin` to match the demo data. If you want your own email, pick a name that does not collide with the demo users (`admin` / `alice` / `bob` / `carol`), or accept that the seeder will reuse this `admin` account and will not create a second `admin@fridge.local`. |
+| `Seed__AdminEmail` | The **sign-in email** (not the display name). Use `admin@fridge.local` to match the local demo account. A personal mailbox is fine, but do not set the previous field to `admin` and also expect a separate `admin@fridge.local` user. |
 | `Seed__AdminPassword` | A strong password that satisfies Identity rules (at least uppercase, lowercase, and numbers; the local demo password `Passw0rd!` is valid) |
 | `R2__ServiceUrl` | Account ID endpoint from the previous section |
 | `R2__AccessKeyId` | R2 access key |
 | `R2__SecretAccessKey` | R2 secret |
 | `R2__BucketName` | bucket name |
 | `R2__PublicBaseUrl` | public URL prefix |
+
+Safest first-deploy pair (same as local `docker compose`; sign-in email matches the demo account):
+
+- `Seed__AdminUserName` = `admin`
+- `Seed__AdminEmail` = `admin@fridge.local`
 
 The following values are already fixed in the Blueprint and do not need to be entered manually:
 
@@ -152,9 +157,13 @@ Perform these checks in the browser (if the free service has just woken up, allo
 
 Common causes when something fails:
 
+Render sometimes labels a **container startup crash** as a failed deploy/build; the Docker image itself may already have compiled. Read the last lines of the runtime log, not just the red status in the UI.
+
 | Symptom | Possible Cause |
 |---|---|
 | App exits immediately on startup; log says Admin is missing | Production does not have an Admin yet, and `Seed__Admin*` values are incomplete |
+| App exits on startup; log says `Username 'admin' is already taken` | `Seed__AdminUserName` is `admin`, but `Seed__AdminEmail` is not `admin@fridge.local`. The Blueprint creates that Admin first, then the demo seeder tries to create `admin@fridge.local` and collides. Redeploy a build that reuses the existing Admin; you do not need to wipe the database. |
+| Log shows `Cannot load library libgssapi_krb5.so.2` | Harmless. The slim image lacks the Kerberos library; later SQL still succeeds. |
 | App fails on startup with Npgsql / SSL errors | `DATABASE_URL` was not injected into the container, or it was changed to a connection string without SSL |
 | Upload returns 500; log mentions checksum / signature | R2 endpoint or credentials are incorrect; Streaming checksum is already disabled in the application, so if it still fails, verify `R2__ServiceUrl` first |
 | Page returns 403 / broken image | `R2__PublicBaseUrl` has an extra trailing `/`, or public read access is not enabled on the bucket |

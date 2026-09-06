@@ -170,6 +170,32 @@ public sealed class StartupBootstrapTests
     }
 
     [Fact]
+    public async Task RunAsync_DemoData_ReusesBootstrapAdmin_WhenUserNameCollidesWithDemoAdmin()
+    {
+        using var host = BootstrapHost.Empty(options =>
+        {
+            options.AdminUserName = "admin";
+            options.AdminEmail = "owner@example.com";
+            options.AdminPassword = BootstrapPassword;
+            options.DemoData = true;
+        });
+
+        await StartupBootstrap.RunAsync(host.Services);
+
+        await using var db = await host.Factory.CreateDbContextAsync();
+        Assert.InRange(await db.FoodItems.CountAsync(), 25, 30);
+
+        var owner = await host.Users.FindByEmailAsync("owner@example.com");
+        Assert.NotNull(owner);
+        Assert.Equal("admin", owner.UserName);
+        Assert.True(await host.Users.IsInRoleAsync(owner, "Admin"));
+        Assert.True(await host.Users.CheckPasswordAsync(owner, BootstrapPassword));
+
+        Assert.Null(await host.Users.FindByEmailAsync("admin@fridge.local"));
+        Assert.NotNull(await host.Users.FindByEmailAsync("alice@fridge.local"));
+    }
+
+    [Fact]
     public async Task SeedDemoData_RemovesLeftoverExampleAdmin_AndShortensExistingUserNames()
     {
         using var host = BootstrapHost.Empty(_ => { });
