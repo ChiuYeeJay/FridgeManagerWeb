@@ -938,7 +938,9 @@ Do not attempt distributed rate limiting; the application runs as a single insta
 
 ## 8.12 Concurrency
 
-While an analysis is running: disable the Analyze button, show `Analyzing photo...`, and prevent duplicate requests from repeated clicks (a `bool _analyzing` flag set before the await).
+While an analysis is running: disable the Analyze button, show `Analyzing photo...`, and prevent duplicate requests from repeated clicks (a `bool _analyzing` flag set before the await). The same in-flight flag is required on **Save item** (`_saving`): a second submit that is already queued on the circuit must return immediately, and a successful save must leave the button disabled until navigation replaces the page.
+
+Interactive Server cannot paint a click until the SignalR round-trip returns. Buttons that start a long action therefore also carry `data-fm-busy-on-click` so `wwwroot/js/busy-click.js` can show the pending label immediately in the browser. That script only changes label and opacity; disabling the control is left to the component flag so the current click/submit still reaches the circuit. After setting a busy flag, `FoodForm` yields once so ImageSharp / Gemini work does not block that first render batch.
 
 Pass the component's cancellation token; cancellation caused by navigation or a disconnected circuit must be caught and must not crash the circuit.
 

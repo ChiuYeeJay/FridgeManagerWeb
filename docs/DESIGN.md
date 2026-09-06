@@ -47,8 +47,9 @@ FoodForm.razor
       → UserUsage < ItemQuota
       → ShelfRemaining >= SizeUnits
       → insert Active, CreatedAt/UpdatedAt = DateTime.UtcNow
-  → OperationResult.Ok → navigate to /food/{id}
-  → OperationResult.Fail → danger alert, values kept; DeleteImageAsync if an upload already landed
+  → OperationResult.Ok → navigate to /food/{id} (button stays disabled)
+  → OperationResult.Fail → danger alert, values kept; DeleteImageAsync if an upload already landed; the in-memory photo stays so Save can upload again
+  → a second Save while `_saving` is true is ignored
 ```
 
 On `/food/new` only, after a photo is buffered for the local preview:
@@ -95,6 +96,7 @@ Expected rule violations never throw. They return `OperationResult` / `Operation
 | `docker-compose.yml` | Local production container + Postgres (throw-away `Seed__*` values) |
 | `render.yaml` | Render Blueprint: free web service + free Postgres; secrets are `sync: false` |
 | `wwwroot/css/theme.css` | Mockup tokens and `fm-*` primitives |
+| `wwwroot/js` | `password-toggle.js` (Account SSR); `busy-click.js` (immediate pending state on long Interactive Server actions) |
 | `wwwroot/uploads` | Local-provider photos (`food-images/yyyy/MM/…`), gitignored; runtime files served with `UseStaticFiles` |
 | `tests/FridgeManager.Tests` | xUnit + EF Core SQLite `:memory:` |
 
@@ -165,7 +167,7 @@ Logout and Identity `ReturnUrl` values go through `LocalUrls.Sanitize` so only s
 
 Available on `/food/new` only. It fills the existing form; it never creates a `FoodItem`.
 
-`FoodForm` reuses the bytes it already buffered for the preview. Selecting a file does not call Gemini. The Analyze button and disclosure render only when `Gemini:Enabled` is true and a photo is pending. Clicking the labelled button after reading the disclosure is consent; there is no extra checkbox.
+`FoodForm` reuses the bytes it already buffered for the preview. Selecting a file does not call Gemini. The Analyze button and disclosure render only when `Gemini:Enabled` is true and a photo is pending. Clicking the labelled button after reading the disclosure is consent; there is no extra checkbox. Analyze and Save share one in-flight gate, flush a render before ImageSharp / Gemini, and ignore a second click already queued on the circuit.
 
 `GeminiOptions` binds `Gemini__Enabled` (default false), `Gemini__ApiKey`, `Gemini__Model` (`gemini-3.5-flash-lite`), `Gemini__TimeoutSeconds` (20), `Gemini__MaxRequestsPerUserPerHour` (20). When Enabled is true, `ApiKey` is required (`ValidateOnStart`). `GeminiFoodImageAnalyzer` uses a named `HttpClient` (`Timeout = TimeoutSeconds`) against `https://generativelanguage.googleapis.com/v1beta/models/{Model}:generateContent` with header `x-goog-api-key`. No Gemini SDK. The request sends the processed WebP as `inlineData` plus the §8.9 instruction (sizeUnits explained as palm-wrap / one-hand lift / two-hand lift), with `generationConfig.responseMimeType` / `responseSchema` and `thinkingConfig.thinkingLevel = minimal`. HTTP 503 is retried once after 400 ms. Failures return a user-facing message (timeout, temporary unavailability, quota, or the §8.13 sentence) and are logged at warning with HTTP status, `finishReason`, and a short body preview — never the API key or image bytes. A successful parse logs the mapped fields at Information. A cancelled circuit token is rethrown.
 
@@ -195,6 +197,8 @@ Card, detail, and the form preview fall back to the category plate if a stored o
 The mockup's Classical tokens live in `theme.css` (`--color-*`, self-hosted Newsreader / Public Sans). Pages use `fm-*` classes rather than Bootstrap. Account pages share the same primitives; Bootstrap remains loaded for residual template widgets.
 
 `html { scrollbar-gutter: stable; }` keeps the layout from shifting when a vertical scrollbar appears. Dashboard and Food list reserve height with skeletons / `.food-results { min-height: 60vh }` so loading and empty states do not collapse the page.
+
+Long actions (Save, Analyze, detail status) cannot feel instant on a slow Interactive Server circuit: the click itself is a SignalR round-trip. `wwwroot/js/busy-click.js` listens in capture phase for `[data-fm-busy-on-click]` and applies `.is-pending` plus the `data-fm-busy-label` before the circuit answers. It must not set `disabled` or `pointer-events: none` — that cancels the in-flight click/submit before Blazor sees it. The component still owns the real busy flag; a failed validation remounts the submit button (`@key`) so a JS-pending control does not stay stuck.
 
 Owner is shown as a chip on the card plate (`You` when the viewer owns the item), as a tag plus table row on detail, and as the subtitle on dashboard shelf chips. Item names truncate to one line with an ellipsis on cards and fridge chips; the detail page wraps long names.
 

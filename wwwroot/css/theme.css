@@ -555,6 +555,12 @@ a {
 .fm-btn:disabled {
     opacity: 0.45;
     cursor: not-allowed;
+    pointer-events: none;
+}
+
+.fm-btn.is-pending {
+    opacity: 0.45;
+    cursor: not-allowed;
 }
 
 .food-card-link {

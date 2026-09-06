@@ -100,7 +100,7 @@ Blueprint: `[render.yaml](render.yaml)`. Step-by-step (R2 bucket, Blueprint secr
 
 Health check path: `/health` (anonymous, body `Healthy`). Render terminates TLS; the container does not call `UseHttpsRedirection`.
 
-Free-tier note: free Render web services spin down after about 15 minutes without traffic and can take up to a minute to cold-start. Free Render PostgreSQL databases expire 30 days after creation. Do not work around this in code.
+Free-tier note: free Render web services spin down after about 15 minutes without traffic and can take up to a minute to cold-start. After the circuit is up, every click still waits on SignalR, so Save / Analyze show a pending state in the browser immediately; the work itself is still as slow as the instance. Free Render PostgreSQL databases expire 30 days after creation. Do not work around spin-down in code.
 
 ## Images
 

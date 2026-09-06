@@ -38,7 +38,7 @@ else
         </div>
     }
 
-    <EditForm @ref="_editForm" Model="Form" OnValidSubmit="SaveAsync">
+    <EditForm @ref="_editForm" Model="Form" OnValidSubmit="SaveAsync" OnInvalidSubmit="OnInvalidSave">
         <DataAnnotationsValidator />
         <div class="form-grid">
             <div class="form-stack">
@@ -189,9 +189,13 @@ else
                             analysis. Do not use sensitive or confidential images. Always review
                             AI-generated suggestions before saving.
                         </p>
-                        <button type="button"
-                                class="fm-btn fm-btn-secondary fm-btn-block"
-                                disabled="@_analyzing"
+                        <button @key="_analyzeEpoch"
+                                type="button"
+                                class="fm-btn fm-btn-secondary fm-btn-block @(_analyzing ? "is-pending" : null)"
+                                disabled="@FormBusy"
+                                data-fm-busy-on-click
+                                data-fm-busy-label="Analyzing photo..."
+                                aria-busy="@_analyzing"
                                 @onclick="AnalyzeAsync">
                             @(_analyzing ? "Analyzing photo..." : "Analyze with AI")
                         </button>
@@ -220,7 +224,15 @@ else
                     </div>
                 }
                 <div style="border-top:1px solid var(--color-divider);padding-top:18px;display:flex;flex-direction:column;gap:8px">
-                    <button class="fm-btn fm-btn-primary fm-btn-block" type="submit" disabled="@_saving">@(_saving ? "Saving…" : "Save item")</button>
+                    <button @key="_submitEpoch"
+                            class="fm-btn fm-btn-primary fm-btn-block @(_saving ? "is-pending" : null)"
+                            type="submit"
+                            disabled="@FormBusy"
+                            data-fm-busy-on-click
+                            data-fm-busy-label="Saving…"
+                            aria-busy="@_saving">
+                        @(_saving ? "Saving…" : "Save item")
+                    </button>
                     <a class="fm-btn fm-btn-secondary fm-btn-block" href="@CancelHref">Cancel</a>
                 </div>
             </aside>

@@ -63,13 +63,13 @@ else
             </table>
             @if (_canModify)
             {
-                <div class="detail-actions">
+                <div class="detail-actions" @key="_actionEpoch">
                     <a class="fm-btn fm-btn-primary" href="@($"food/{_item.Id}/edit")">Edit</a>
                     @if (_item.Status == FoodStatus.Active)
                     {
-                        <button type="button" class="fm-btn fm-btn-secondary" disabled="@_busy" @onclick="() => ChangeStatusAsync(FoodStatus.Consumed)">Mark as consumed</button>
-                        <button type="button" class="fm-btn fm-btn-secondary" disabled="@_busy" @onclick="() => ChangeStatusAsync(FoodStatus.Missing)">Mark as missing</button>
-                        <button type="button" class="fm-btn fm-btn-danger-outline" disabled="@_busy" @onclick="() => ChangeStatusAsync(FoodStatus.Discarded)">Mark as discarded</button>
+                        <button type="button" class="fm-btn fm-btn-secondary @(_busy ? "is-pending" : null)" disabled="@_busy" data-fm-busy-on-click aria-busy="@_busy" @onclick="() => ChangeStatusAsync(FoodStatus.Consumed)">Mark as consumed</button>
+                        <button type="button" class="fm-btn fm-btn-secondary @(_busy ? "is-pending" : null)" disabled="@_busy" data-fm-busy-on-click aria-busy="@_busy" @onclick="() => ChangeStatusAsync(FoodStatus.Missing)">Mark as missing</button>
+                        <button type="button" class="fm-btn fm-btn-danger-outline @(_busy ? "is-pending" : null)" disabled="@_busy" data-fm-busy-on-click aria-busy="@_busy" @onclick="() => ChangeStatusAsync(FoodStatus.Discarded)">Mark as discarded</button>
                     }
                 </div>
                 <p class="text-muted" style="font-size:12px;margin-top:12px">
@@ -111,6 +111,7 @@ else
     private bool _notFound;
     private bool _canModify;
     private bool _busy;
+    private int _actionEpoch;
     private string? _error;
     private int _shelfRemaining;
     private ExpiryState _state;
@@ -200,7 +201,14 @@ else
 
     private async Task ChangeStatusAsync(FoodStatus status)
     {
+        if (_busy)
+        {
+            return;
+        }
+
         _busy = true;
+        await InvokeAsync(StateHasChanged);
+        await Task.Yield();
         try
         {
             var result = await Inventory.ChangeStatusAsync(Id, status, _user);
@@ -215,6 +223,7 @@ else
         finally
         {
             _busy = false;
+            _actionEpoch++;
         }
     }
 }

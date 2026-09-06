@@ -31,7 +31,7 @@ dotnet run
 2. Open **New item** (`/food/new`).
 3. Choose a **non-sensitive** food photo (a labelled yogurt or milk carton is ideal).
 4. Read the disclosure under the photo. It must be visible **before** you click **Analyze with AI**.
-5. Click **Analyze with AI**. The button should disable and show `Analyzing photo...`.
+5. Click **Analyze with AI**. The button should disable immediately and show `Analyzing photo...`. A second click must not start another request.
 6. Suggested Name / Category / Size / Expiration (only if a date is printed) fill fields you have not typed or changed, and show an **AI** tag. Values you already entered stay. Empty suggestions leave the current value alone.
 7. Edit a suggested field: the AI tag on that control should disappear.
 8. Pick a shelf (AI never sets shelf, owner, sharing, or position) and **Save item**. The item is created through the existing quota and capacity checks.
@@ -82,6 +82,7 @@ Allow a cold start on the free plan (up to about a minute). Use a **non-sensitiv
 - [ ] A null expiration (no printed date) does not overwrite the date you already typed
 - [ ] Editing a marked field clears that control’s AI tag
 - [ ] Save still requires a shelf and still enforces quota / capacity
+- [ ] Analyze and Save disable immediately on click (pending label, no second request / no second item)
 - [ ] Force a failure (disconnect, or use a 1×1 pixel junk image): the form values stay; you see a manual-fill message (timeout, temporarily unavailable, or the generic “could not be completed” sentence)
 - [ ] 21st Analyze in the same hour for the same user: `You have used all AI analyses for this hour. You can continue filling the form manually.`
 - [ ] Browser DevTools: no API key, no direct Gemini request from the client

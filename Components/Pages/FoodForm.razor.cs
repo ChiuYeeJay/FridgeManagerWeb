@@ -49,6 +49,8 @@ public partial class FoodForm : IDisposable
     private bool _loading = true;
     private bool _saving;
     private bool _analyzing;
+    private int _submitEpoch;
+    private int _analyzeEpoch;
     private bool _originalActive;
     private int _originalShelfId;
     private int _originalSize;
@@ -89,6 +91,8 @@ public partial class FoodForm : IDisposable
         => IsAi(nameof(FoodItemForm.ExpirationDate)) ? "fm-input fig is-ai" : "fm-input fig";
 
     private bool ShowAi => !IsEdit && Gemini.Value.Enabled && _pendingBytes is not null;
+
+    private bool FormBusy => _saving || _analyzing;
 
     private int UsedPercent
     {
@@ -354,15 +358,29 @@ public partial class FoodForm : IDisposable
         _aiError = null;
     }
 
+    private void OnInvalidSave() => _submitEpoch++;
+
+    private async Task FlushBusyAsync()
+    {
+        await InvokeAsync(StateHasChanged);
+        await Task.Yield();
+    }
+
     private async Task AnalyzeAsync()
     {
-        if (_analyzing || _pendingBytes is null || _pendingContentType is null)
+        if (FormBusy || _pendingBytes is null || _pendingContentType is null)
         {
+            if (!_analyzing)
+            {
+                _analyzeEpoch++;
+            }
+
             return;
         }
 
         _analyzing = true;
         _aiError = null;
+        await FlushBusyAsync();
         try
         {
             _analyzeCts?.Dispose();
@@ -393,6 +411,7 @@ public partial class FoodForm : IDisposable
         finally
         {
             _analyzing = false;
+            _analyzeEpoch++;
         }
     }
 
@@ -421,10 +440,22 @@ public partial class FoodForm : IDisposable
 
     private async Task SaveAsync()
     {
+        if (FormBusy)
+        {
+            if (!_saving)
+            {
+                _submitEpoch++;
+            }
+
+            return;
+        }
+
         _saving = true;
         _error = null;
+        await FlushBusyAsync();
         try
         {
+            var previousImagePath = Form.ImagePath;
             string? uploadedPath = null;
             if (_pendingFile is not null)
             {
@@ -433,12 +464,12 @@ public partial class FoodForm : IDisposable
                 {
                     _error = uploaded.Error;
                     await RefreshCapacityAsync();
+                    ReleaseSave();
                     return;
                 }
 
                 uploadedPath = uploaded.Value;
                 Form.ImagePath = uploadedPath;
-                _pendingFile = null;
             }
 
             if (IsEdit)
@@ -447,11 +478,11 @@ public partial class FoodForm : IDisposable
                 if (!result.Success)
                 {
                     _error = result.Error;
-                    await Inventory.DeleteImageAsync(uploadedPath);
-                    await RefreshCapacityAsync();
+                    await RollbackUploadAsync(uploadedPath, previousImagePath);
                     return;
                 }
 
+                _pendingFile = null;
                 Navigation.NavigateTo($"food/{Id}");
                 return;
             }
@@ -460,17 +491,36 @@ public partial class FoodForm : IDisposable
             if (!created.Success || created.Value is null)
             {
                 _error = created.Error;
-                await Inventory.DeleteImageAsync(uploadedPath);
-                await RefreshCapacityAsync();
+                await RollbackUploadAsync(uploadedPath, previousImagePath);
                 return;
             }
 
+            _pendingFile = null;
             Navigation.NavigateTo($"food/{created.Value.Id}");
         }
-        finally
+        catch
         {
-            _saving = false;
+            ReleaseSave();
+            throw;
         }
+    }
+
+    private async Task RollbackUploadAsync(string? uploadedPath, string? previousImagePath)
+    {
+        await Inventory.DeleteImageAsync(uploadedPath);
+        if (uploadedPath is not null)
+        {
+            Form.ImagePath = previousImagePath;
+        }
+
+        await RefreshCapacityAsync();
+        ReleaseSave();
+    }
+
+    private void ReleaseSave()
+    {
+        _saving = false;
+        _submitEpoch++;
     }
 
     private sealed class BufferedBrowserFile : IBrowserFile
