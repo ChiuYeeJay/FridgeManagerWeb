@@ -22,7 +22,7 @@ Browser ═══ SignalR / HTTPS ═══▶ FridgeManager (.NET 10, Docker, R
 - Images: `IImageStorage` — local files in Development / docker compose, Cloudflare R2 in production
 - UI: `wwwroot/css/theme.css` (`fm-*` primitives)
 
-Spec: `[docs/SPEC.md](docs/SPEC.md)`. Extensions: `[docs/SPEC_EXTENSIONS.md](docs/SPEC_EXTENSIONS.md)`. Design: `[docs/DESIGN.md](docs/DESIGN.md)`. Decisions: `[docs/adr/](docs/adr/)`. Render/R2 setup: `[docs/PHASE6_MANUAL_STEPS.md](docs/PHASE6_MANUAL_STEPS.md)`. Gemini API key and smoke test: `[docs/PHASE7_MANUAL_STEPS.md](docs/PHASE7_MANUAL_STEPS.md)`.
+Spec: `[docs/SPEC.md](docs/SPEC.md)`. Extensions: `[docs/SPEC_EXTENSIONS.md](docs/SPEC_EXTENSIONS.md)`. Design: `[docs/DESIGN.md](docs/DESIGN.md)`. Decisions: `[docs/adr/](docs/adr/)`. Render/R2 setup: `[docs/PHASE6_MANUAL_STEPS.md](docs/PHASE6_MANUAL_STEPS.md)`. Gemini API key and smoke test: `[docs/PHASE7_MANUAL_STEPS.md](docs/PHASE7_MANUAL_STEPS.md)`. Security verification after deploy: `[docs/PHASE9_MANUAL_STEPS.md](docs/PHASE9_MANUAL_STEPS.md)`.
 
 ## Local development
 
@@ -51,7 +51,20 @@ dotnet build FridgeManager.slnx
 dotnet test tests/FridgeManager.Tests
 ```
 
+Automated tests use SQLite in memory, `FakeImageStorage`, and `FakeFoodImageAnalyzer`. They never need R2, Gemini, or a production database.
 
+## Continuous integration
+
+[`.github/workflows/ci.yml`](.github/workflows/ci.yml) runs on every push and pull request to `main`:
+
+```text
+dotnet restore
+dotnet build -c Release
+dotnet test  -c Release
+docker build .
+```
+
+The job uses no repository secrets. ImageSharp 3.1.12 does not need a license key. After the Phase 9 commit lands, confirm the workflow is green on `main` ([docs/PHASE9_MANUAL_STEPS.md](docs/PHASE9_MANUAL_STEPS.md)).
 
 ## Run the production image locally (docker compose)
 
@@ -155,6 +168,7 @@ These are accepted. Do not “fix” them in this codebase.
 7. **Disable delay.** After an admin disables a member, an existing circuit may last until security-stamp revalidation (up to 30 minutes). New logins are blocked immediately.
 8. **Identity template remnants.** Passkey, 2FA, and Forgot-password pages from the template may remain. External login does not create accounts.
 9. **Gemini** is an external dependency; availability and quota may temporarily disable autofill. Recognition can be wrong and will not invent expiration dates.
+10. **One uploaded image per food item.** Replacing a photo best-effort deletes the previous object. There is no status history and no expiry notification.
 
 
 

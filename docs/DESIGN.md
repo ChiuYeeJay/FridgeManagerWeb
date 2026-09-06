@@ -95,6 +95,7 @@ Expected rule violations never throw. They return `OperationResult` / `Operation
 | `Dockerfile` / `.dockerignore` | Production image; publishes the root `FridgeManager.csproj` only |
 | `docker-compose.yml` | Local production container + Postgres (throw-away `Seed__*` values) |
 | `render.yaml` | Render Blueprint: free web service + free Postgres; secrets are `sync: false` |
+| `.github/workflows/ci.yml` | restore / Release build / test / `docker build`; no credentials |
 | `wwwroot/css/theme.css` | Mockup tokens and `fm-*` primitives |
 | `wwwroot/js` | `password-toggle.js` (Account SSR); `busy-click.js` (immediate pending state on long Interactive Server actions); `time-zone.js` (browser IANA id for `UserClock`) |
 | `wwwroot/uploads` | Local-provider photos (`food-images/yyyy/MM/…`), gitignored; runtime files served with `UseStaticFiles` |
@@ -223,9 +224,18 @@ Dashboard shelf remaining is the `FridgeElevation` chip row (chip flex grows wit
 
 `SqliteDbFactory` holds one open `Data Source=:memory:` connection and calls `EnsureCreated` once. Each inventory/capacity test seeds a small fridge (Shelf A at capacity 5, Alice at quota 2) so the guards are demonstrable without the production seeder.
 
-`UserAdminServiceTests` and `StartupBootstrapTests` build a real `UserManager` / `RoleManager` on that factory. Inventory tests inject `FakeImageStorage`. `SaveImageTests` uses `LocalImageStorage` plus a temp `IWebHostEnvironment.WebRootPath` and real tiny JPEG/PNG/WebP bytes from ImageSharp. `ImageNormalizerTests` cover EXIF strip, orientation, 2000 px cap, an explicit 1600 px AI cap, and no upscale. `UploadPaths`, `NpgsqlConnectionStrings`, `FoodDisplay`, and `UserClock.Resolve` are tested as pure helpers. AI tests inject `FakeFoodImageAnalyzer` / a recording analyzer / a stub `HttpMessageHandler`; they never call live Gemini. `AiRateLimiterTests` use a test `TimeProvider`. `AiSuggestionsTests` send an AI-filled `FoodItemForm` through `CreateItemAsync` / `UpdateItemAsync` so quota, capacity, and authorization still apply.
+`UserAdminServiceTests` and `StartupBootstrapTests` build a real `UserManager` / `RoleManager` on that factory. Inventory tests inject `FakeImageStorage`. `SaveImageTests` uses `LocalImageStorage` plus a temp `IWebHostEnvironment.WebRootPath` and real tiny JPEG/PNG/WebP bytes from ImageSharp. `ImageNormalizerTests` cover EXIF strip, orientation, 2000 px cap, an explicit 1600 px AI cap, and no upscale. `UploadPaths`, `NpgsqlConnectionStrings`, `FoodDisplay`, and `UserClock.Resolve` are tested as pure helpers. AI tests inject `FakeFoodImageAnalyzer` / a recording analyzer / a stub `HttpMessageHandler`; they never call live Gemini. `AiRateLimiterTests` use a test `TimeProvider`. `AiSuggestionsTests` send an AI-filled `FoodItemForm` through `CreateItemAsync` / `UpdateItemAsync` so quota, capacity, and authorization still apply. `RegistrationDisabledTests` reads the Account Register sources and nav/login markup so public registration cannot come back without a failing test.
 
-The SPEC §11 list is the minimum. Add a test in `tests/FridgeManager.Tests` whenever a service rule or filter changes.
+The SPEC §11 list plus SPEC_EXTENSIONS §7.1 is the minimum. Add a test in `tests/FridgeManager.Tests` whenever a service rule or filter changes.
+
+GitHub Actions ([`.github/workflows/ci.yml`](../.github/workflows/ci.yml)) runs `dotnet restore`, `dotnet build -c Release`, `dotnet test -c Release`, and `docker build .` on every push and pull request to `main`. The workflow has no secrets and does not start Postgres or call R2 / Gemini.
+
+### Phase 9 verification
+
+- **Registration (§6.1).** `/Account/Register` and `/Account/RegisterConfirmation` only call `RedirectTo("Account/Login")`. They do not create a user or show a confirmation link. Login and the main nav have no register link. Account pages stay static SSR (`[ExcludeFromInteractiveRouting]`). `Components/Account/**` was not changed in this phase.
+- **Authorization (§6.2).** `UpdateItemAsync`, `ChangeStatusAsync`, every `UserAdminService` mutation, and `FoodImageAnalysisService.AnalyzeAsync` still decide in the service. Existing inventory, admin, AI suggestion, and analysis tests are the evidence.
+- **Upload (§6.6).** `SaveImageAsync` requires a signed-in caller, accepts only JPEG/PNG/WebP, matches magic bytes to the claimed type, caps the stream at 5 MB before buffering, discards the client filename, and stores a server-generated `food-images/{yyyy}/{MM}/{guid:N}.webp` key. `/uploads` stays authenticated with `nosniff`.
+- **Secrets (§6.4).** Working tree and git history were grepped for `ApiKey`, `SecretAccessKey`, `Password=`, and `postgres://`. Hits are placeholders, option property names, compose throw-away passwords (`compose-dev-password`, `devpassword`), and test fakes (`test-key`, `p@ss`). No production R2, Gemini, or Render credential was found. `.gitignore` now ignores `.env*` and `appsettings.*.local.json`.
 
 ## Deviations from the spec
 
@@ -261,3 +271,4 @@ Also accepted for the extension (SPEC_EXTENSIONS §9):
 - R2 demo images are publicly readable by URL.
 - Gemini is an external dependency; availability and quota may temporarily disable autofill.
 - AI recognition may be inaccurate and cannot invent expiration dates unless a date is visibly printed.
+- No status audit history; no expiry notifications; one uploaded image per food item.

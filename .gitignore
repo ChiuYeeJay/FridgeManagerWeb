@@ -206,3 +206,8 @@ Thumbs.db
 wwwroot/uploads/*
 !wwwroot/uploads/.gitkeep
 
+# Local secrets (never commit)
+.env
+.env.*
+appsettings.*.local.json
+
