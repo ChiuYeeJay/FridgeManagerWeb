@@ -1,4 +1,7 @@
+using Amazon.Runtime;
+using Amazon.S3;
 using Microsoft.AspNetCore.Components.Authorization;
+using Microsoft.AspNetCore.DataProtection;
 using Microsoft.AspNetCore.HttpOverrides;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
@@ -26,12 +29,17 @@ builder.Services.AddAuthentication(options =>
     .AddIdentityCookies();
 
 var connectionString = builder.Configuration.GetConnectionString("DefaultConnection")
+    ?? NpgsqlConnectionStrings.FromDatabaseUrl(builder.Configuration["DATABASE_URL"])
     ?? throw new InvalidOperationException("Connection string 'DefaultConnection' not found.");
 
 builder.Services.AddDbContextFactory<AppDbContext>(opt => opt.UseNpgsql(connectionString));
 builder.Services.AddScoped<AppDbContext>(sp =>
     sp.GetRequiredService<IDbContextFactory<AppDbContext>>().CreateDbContext());
 builder.Services.AddDatabaseDeveloperPageExceptionFilter();
+
+builder.Services.AddDataProtection()
+    .PersistKeysToDbContext<AppDbContext>()
+    .SetApplicationName("FridgeManager");
 
 builder.Services.AddIdentityCore<ApplicationUser>(options =>
     {
@@ -57,6 +65,7 @@ builder.Services.Configure<ForwardedHeadersOptions>(o =>
 });
 builder.Services.AddHealthChecks();
 builder.Services.Configure<SeedOptions>(builder.Configuration.GetSection(SeedOptions.SectionName));
+AddImageStorage(builder);
 
 builder.Services.AddSingleton<IEmailSender<ApplicationUser>, IdentityNoOpEmailSender>();
 builder.Services.AddScoped<IInventoryService, InventoryService>();
@@ -139,3 +148,39 @@ app.MapAdditionalIdentityEndpoints();
 app.MapHealthChecks("/health").AllowAnonymous();
 
 app.Run();
+
+static void AddImageStorage(WebApplicationBuilder builder)
+{
+    var provider = builder.Configuration[$"{ImageStorageOptions.SectionName}:Provider"] ?? "";
+    switch (provider)
+    {
+        case "Local":
+            builder.Services.AddSingleton<IImageStorage, LocalImageStorage>();
+            break;
+        case "R2":
+            builder.Services.AddOptions<R2Options>()
+                .Bind(builder.Configuration.GetSection(R2Options.SectionName))
+                .Validate(o => o.IsComplete, "R2 storage requires ServiceUrl, AccessKeyId, SecretAccessKey, BucketName, and PublicBaseUrl.")
+                .ValidateOnStart();
+            builder.Services.AddSingleton<IAmazonS3>(sp =>
+            {
+                var r2 = sp.GetRequiredService<Microsoft.Extensions.Options.IOptions<R2Options>>().Value;
+                var credentials = new BasicAWSCredentials(r2.AccessKeyId, r2.SecretAccessKey);
+                var config = new AmazonS3Config
+                {
+                    ServiceURL = r2.ServiceUrl,
+                    ForcePathStyle = true,
+                    AuthenticationRegion = "auto",
+                    RequestChecksumCalculation = RequestChecksumCalculation.WHEN_REQUIRED,
+                    ResponseChecksumValidation = ResponseChecksumValidation.WHEN_REQUIRED
+                };
+                return new AmazonS3Client(credentials, config);
+            });
+            builder.Services.AddSingleton<IImageStorage, R2ImageStorage>();
+            break;
+        default:
+            throw new InvalidOperationException(
+                $"ImageStorage:Provider '{provider}' is not supported. Use Local or R2.");
+    }
+}
+

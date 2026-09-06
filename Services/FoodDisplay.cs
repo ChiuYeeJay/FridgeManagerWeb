@@ -44,10 +44,8 @@ public static class FoodDisplay
     public static string CategoryImage(FoodCategory category)
         => $"/images/categories/{category.ToString().ToLowerInvariant()}.webp";
 
-    public static string ImageUrl(FoodItem item)
-        => UploadPaths.IsSafeStoredPath(item.ImagePath)
-            ? item.ImagePath!
-            : CategoryImage(item.Category);
+    public static string ImageUrl(FoodItem item, IImageStorage storage)
+        => storage.GetPublicUrl(item.ImagePath) ?? CategoryImage(item.Category);
 
     public static string OwnerLabel(ApplicationUser owner)
     {

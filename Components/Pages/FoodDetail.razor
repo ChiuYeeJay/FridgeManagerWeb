@@ -25,10 +25,10 @@ else
     <div class="detail-grid" style="margin-top:14px">
         <div>
             <button type="button" class="detail-plate detail-plate-zoom" aria-label="View full image" @onclick="OpenLightbox">
-                <img src="@FoodDisplay.ImageUrl(_item)" alt="" />
+                <img src="@FoodDisplay.ImageUrl(_item, ImageStorage)" alt="" />
             </button>
             <div class="text-muted" style="font-size:11px;margin-top:6px">
-                @(string.IsNullOrEmpty(_item.ImagePath) ? "Category plate" : "Uploaded photo")
+                @(ImageStorage.GetPublicUrl(_item.ImagePath) is null ? "Category plate" : "Uploaded photo")
             </div>
         </div>
         <div>
@@ -82,7 +82,7 @@ else
     {
         <div class="fm-lightbox" tabindex="-1" @ref="_lightbox" @onclick="CloseLightbox" @onkeydown="OnLightboxKey">
             <button type="button" class="fm-btn fm-btn-ghost fm-lightbox-close" @onclick="CloseLightbox" @onclick:stopPropagation="true">Close</button>
-            <img src="@FoodDisplay.ImageUrl(_item)" alt="@_item.Name" @onclick:stopPropagation="true" />
+            <img src="@FoodDisplay.ImageUrl(_item, ImageStorage)" alt="@_item.Name" @onclick:stopPropagation="true" />
         </div>
     }
 }
@@ -96,6 +96,9 @@ else
 
     [Inject]
     private ICapacityService Capacity { get; set; } = default!;
+
+    [Inject]
+    private IImageStorage ImageStorage { get; set; } = default!;
 
     [Inject]
     private FoodListState ListState { get; set; } = default!;

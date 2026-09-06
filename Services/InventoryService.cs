@@ -5,12 +5,14 @@ using FridgeManager.Data.Entities;
 using FridgeManager.Data.Enums;
 using FridgeManager.Services.Models;
 using Microsoft.AspNetCore.Components.Forms;
-using Microsoft.AspNetCore.Hosting;
 using Microsoft.EntityFrameworkCore;
 
 namespace FridgeManager.Services;
 
-public class InventoryService(IDbContextFactory<AppDbContext> factory, IWebHostEnvironment env) : IInventoryService
+public class InventoryService(
+    IDbContextFactory<AppDbContext> factory,
+    IImageStorage storage,
+    ILogger<InventoryService> logger) : IInventoryService
 {
     public const long MaxImageBytes = 5 * 1024 * 1024;
 
@@ -198,9 +200,18 @@ public class InventoryService(IDbContextFactory<AppDbContext> factory, IWebHostE
             }
         }
 
+        var previousKey = item.ImagePath;
         form.ApplyTo(item);
         item.UpdatedAt = DateTime.UtcNow;
         await db.SaveChangesAsync();
+
+        if (!string.Equals(previousKey, item.ImagePath, StringComparison.Ordinal)
+            && previousKey is not null
+            && UploadPaths.IsSafeStorageKey(previousKey))
+        {
+            await TryDeleteAsync(previousKey);
+        }
+
         return OperationResult.Ok();
     }
 
@@ -251,11 +262,6 @@ public class InventoryService(IDbContextFactory<AppDbContext> factory, IWebHostE
             return OperationResult<string>.Fail("Use a JPG, PNG or WebP image.");
         }
 
-        if (string.IsNullOrWhiteSpace(env.WebRootPath))
-        {
-            return OperationResult<string>.Fail("Could not save that photo.");
-        }
-
         byte[] bytes;
         try
         {
@@ -277,42 +283,45 @@ public class InventoryService(IDbContextFactory<AppDbContext> factory, IWebHostE
             return OperationResult<string>.Fail("Use a JPG, PNG or WebP image.");
         }
 
-        var uploads = Path.Combine(env.WebRootPath, UploadPaths.FolderName);
-        Directory.CreateDirectory(uploads);
-        var fileName = $"{Guid.NewGuid():N}{extension}";
-        var physicalPath = Path.Combine(uploads, fileName);
+        var normalized = ImageNormalizer.Normalize(bytes);
+        if (normalized is null)
+        {
+            return OperationResult<string>.Fail("Use a JPG, PNG or WebP image.");
+        }
 
         try
         {
-            await File.WriteAllBytesAsync(physicalPath, bytes);
+            await using var stream = new MemoryStream(normalized.Bytes, writable: false);
+            var key = await storage.SaveAsync(stream, normalized.ContentType);
+            return OperationResult<string>.Ok(key);
         }
-        catch (IOException)
+        catch (Exception ex)
         {
-            if (File.Exists(physicalPath))
-            {
-                File.Delete(physicalPath);
-            }
-
+            logger.LogError(ex, "Failed to store uploaded image.");
             return OperationResult<string>.Fail("Could not save that photo.");
         }
-
-        return OperationResult<string>.Ok($"{UploadPaths.UrlPrefix}{fileName}");
     }
 
-    public Task DeleteImageAsync(string? imagePath)
+    public async Task DeleteImageAsync(string? imagePath)
     {
-        if (!UploadPaths.IsSafeStoredPath(imagePath) || string.IsNullOrWhiteSpace(env.WebRootPath))
+        if (!UploadPaths.IsSafeStorageKey(imagePath))
         {
-            return Task.CompletedTask;
+            return;
         }
 
-        var physicalPath = Path.Combine(env.WebRootPath, UploadPaths.FolderName, Path.GetFileName(imagePath!));
-        if (File.Exists(physicalPath))
-        {
-            File.Delete(physicalPath);
-        }
+        await TryDeleteAsync(imagePath!);
+    }
 
-        return Task.CompletedTask;
+    private async Task TryDeleteAsync(string storageKey)
+    {
+        try
+        {
+            await storage.DeleteAsync(storageKey);
+        }
+        catch (Exception ex)
+        {
+            logger.LogWarning(ex, "Failed to delete obsolete image {StorageKey}.", storageKey);
+        }
     }
 
     private static IQueryable<FoodItem> ApplySort(IQueryable<FoodItem> query, FoodFilter filter)
@@ -360,7 +369,7 @@ public class InventoryService(IDbContextFactory<AppDbContext> factory, IWebHostE
             return "Choose a shelf.";
         }
 
-        if (!string.IsNullOrEmpty(form.ImagePath) && !UploadPaths.IsSafeStoredPath(form.ImagePath))
+        if (!string.IsNullOrEmpty(form.ImagePath) && !UploadPaths.IsSafeStorageKey(form.ImagePath))
         {
             return "That photo could not be used.";
         }

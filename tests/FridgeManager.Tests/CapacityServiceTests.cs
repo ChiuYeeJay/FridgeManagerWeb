@@ -1,6 +1,7 @@
 using FridgeManager.Data.Enums;
 using FridgeManager.Services;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Logging.Abstractions;
 
 namespace FridgeManager.Tests;
 
@@ -123,7 +124,6 @@ public sealed class CapacityServiceTests
     private sealed class ServiceHost : IDisposable
     {
         public SqliteDbFactory Factory { get; } = new();
-        public FakeWebHostEnvironment Env { get; } = new();
         public SeedData Seed { get; }
         public InventoryService Inventory { get; }
         public CapacityService Capacity { get; }
@@ -131,14 +131,10 @@ public sealed class CapacityServiceTests
         public ServiceHost()
         {
             Seed = TestData.Seed(Factory);
-            Inventory = new InventoryService(Factory, Env);
+            Inventory = new InventoryService(Factory, new FakeImageStorage(), NullLogger<InventoryService>.Instance);
             Capacity = new CapacityService(Factory);
         }
 
-        public void Dispose()
-        {
-            Factory.Dispose();
-            Env.Dispose();
-        }
+        public void Dispose() => Factory.Dispose();
     }
 }

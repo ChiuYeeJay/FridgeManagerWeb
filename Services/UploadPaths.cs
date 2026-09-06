@@ -1,38 +1,23 @@
+using System.Text.RegularExpressions;
+
 namespace FridgeManager.Services;
 
-public static class UploadPaths
+public static partial class UploadPaths
 {
     public const string FolderName = "uploads";
     public const string UrlPrefix = "/uploads/";
+    public const string KeyPrefix = "food-images/";
 
-    public static bool IsSafeStoredPath(string? path)
+    [GeneratedRegex(@"^food-images/\d{4}/\d{2}/[0-9a-f]{32}\.webp$", RegexOptions.CultureInvariant)]
+    private static partial Regex StorageKeyPattern();
+
+    public static bool IsSafeStorageKey(string? key)
+        => !string.IsNullOrWhiteSpace(key) && StorageKeyPattern().IsMatch(key);
+
+    public static string NewStorageKey(DateTime utcNow)
     {
-        if (string.IsNullOrWhiteSpace(path) || !path.StartsWith(UrlPrefix, StringComparison.Ordinal))
-        {
-            return false;
-        }
-
-        var fileName = path[UrlPrefix.Length..];
-        return IsSafeFileName(fileName);
-    }
-
-    public static bool IsSafeFileName(string? fileName)
-    {
-        if (string.IsNullOrWhiteSpace(fileName)
-            || fileName.Contains('/')
-            || fileName.Contains('\\')
-            || fileName.Contains("..", StringComparison.Ordinal))
-        {
-            return false;
-        }
-
-        var extension = Path.GetExtension(fileName);
-        if (extension is not (".jpg" or ".png" or ".webp"))
-        {
-            return false;
-        }
-
-        return Guid.TryParseExact(Path.GetFileNameWithoutExtension(fileName), "N", out _);
+        var utc = utcNow.Kind == DateTimeKind.Utc ? utcNow : utcNow.ToUniversalTime();
+        return $"{KeyPrefix}{utc:yyyy}/{utc:MM}/{Guid.NewGuid():N}.webp";
     }
 
     public static bool HasMatchingMagic(ReadOnlySpan<byte> bytes, string extension)

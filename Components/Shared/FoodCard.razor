@@ -3,7 +3,7 @@
 <div class="food-card @(Expired ? "food-card-expired" : null)">
     <a class="food-card-link" href="@($"food/{Item.Id}")">
         <div class="food-card-plate">
-            <img src="@FoodDisplay.ImageUrl(Item)" alt="" />
+            <img src="@FoodDisplay.ImageUrl(Item, ImageStorage)" alt="" />
             <span class="owner-chip @(_own ? "owner-chip-you" : null)">
                 <span class="owner-chip-initial">@FoodDisplay.OwnerInitial(Item.Owner)</span>
                 @(_own ? "You" : FoodDisplay.OwnerLabel(Item.Owner))
@@ -48,6 +48,9 @@
 
     [Parameter]
     public EventCallback OnDiscard { get; set; }
+
+    [Inject]
+    private IImageStorage ImageStorage { get; set; } = default!;
 
     private ExpiryState _state;
     private bool _own;

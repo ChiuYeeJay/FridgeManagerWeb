@@ -6,20 +6,27 @@
     <ImplicitUsings>enable</ImplicitUsings>
     <UserSecretsId>aspnet-FridgeManager-f7bf5200-2946-494f-978b-1db1c0daafbe</UserSecretsId>
     <BlazorDisableThrowNavigationException>true</BlazorDisableThrowNavigationException>
-    <DefaultItemExcludes>$(DefaultItemExcludes);tests/**</DefaultItemExcludes>
+    <DefaultItemExcludes>$(DefaultItemExcludes);tests/**;wwwroot/uploads/**</DefaultItemExcludes>
   </PropertyGroup>
+
+  <ItemGroup>
+    <Watch Remove="wwwroot/uploads/**" />
+  </ItemGroup>
 
   <ItemGroup>
     <Using Include="FridgeManager.Data.Entities" />
   </ItemGroup>
 
   <ItemGroup>
+    <PackageReference Include="AWSSDK.S3" Version="4.0.102.5" />
     <PackageReference Include="Microsoft.AspNetCore.App.Internal.Assets" Version="10.0.11" />
+    <PackageReference Include="Microsoft.AspNetCore.DataProtection.EntityFrameworkCore" Version="10.0.11" />
     <PackageReference Include="Microsoft.AspNetCore.Diagnostics.EntityFrameworkCore" Version="10.0.11" />
     <PackageReference Include="Microsoft.AspNetCore.Identity.EntityFrameworkCore" Version="10.0.11" />
     <PackageReference Include="Microsoft.EntityFrameworkCore.Design" Version="10.0.11" PrivateAssets="all" />
     <PackageReference Include="Microsoft.EntityFrameworkCore.Tools" Version="10.0.11" />
     <PackageReference Include="Npgsql.EntityFrameworkCore.PostgreSQL" Version="10.0.3" />
+    <PackageReference Include="SixLabors.ImageSharp" Version="3.1.12" />
   </ItemGroup>
 
 </Project>

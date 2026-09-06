@@ -2,6 +2,7 @@ using FridgeManager.Data.Enums;
 using FridgeManager.Services;
 using FridgeManager.Services.Models;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Logging.Abstractions;
 
 namespace FridgeManager.Tests;
 
@@ -522,6 +523,69 @@ public sealed class InventoryServiceTests
         Assert.Null(result.Value);
     }
 
+    [Fact]
+    public async Task UpdateItemAsync_WhenImageKeyChanges_DeletesPreviousObject()
+    {
+        using var host = new ServiceHost();
+        const string oldKey = "food-images/2026/09/aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa.webp";
+        const string newKey = "food-images/2026/09/bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb.webp";
+        host.Storage.Seed(oldKey, [1]);
+        host.Storage.Seed(newKey, [2]);
+        await using (var db = await host.Factory.CreateDbContextAsync())
+        {
+            var item = await db.FoodItems.SingleAsync(f => f.Id == host.Seed.BobsMilkId);
+            item.ImagePath = oldKey;
+            await db.SaveChangesAsync();
+        }
+
+        var form = ValidForm(host.Seed.ShelfAId, size: 3, name: "Milk");
+        form.ImagePath = newKey;
+
+        var result = await host.Inventory.UpdateItemAsync(
+            host.Seed.BobsMilkId,
+            form,
+            Principals.For(host.Seed.BobId));
+
+        Assert.True(result.Success);
+        Assert.Contains(oldKey, host.Storage.Deleted);
+        await using (var db = await host.Factory.CreateDbContextAsync())
+        {
+            var stored = await db.FoodItems.SingleAsync(f => f.Id == host.Seed.BobsMilkId);
+            Assert.Equal(newKey, stored.ImagePath);
+        }
+    }
+
+    [Fact]
+    public async Task UpdateItemAsync_WhenForbidden_DoesNotDeletePreviousObject()
+    {
+        using var host = new ServiceHost();
+        const string oldKey = "food-images/2026/09/aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa.webp";
+        const string newKey = "food-images/2026/09/bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb.webp";
+        host.Storage.Seed(oldKey, [1]);
+        await using (var db = await host.Factory.CreateDbContextAsync())
+        {
+            var item = await db.FoodItems.SingleAsync(f => f.Id == host.Seed.BobsMilkId);
+            item.ImagePath = oldKey;
+            await db.SaveChangesAsync();
+        }
+
+        var form = ValidForm(host.Seed.ShelfAId, size: 3, name: "Hijacked milk");
+        form.ImagePath = newKey;
+
+        var result = await host.Inventory.UpdateItemAsync(
+            host.Seed.BobsMilkId,
+            form,
+            Principals.For(host.Seed.AliceId));
+
+        Assert.False(result.Success);
+        Assert.Empty(host.Storage.Deleted);
+        await using (var db = await host.Factory.CreateDbContextAsync())
+        {
+            var stored = await db.FoodItems.SingleAsync(f => f.Id == host.Seed.BobsMilkId);
+            Assert.Equal(oldKey, stored.ImagePath);
+        }
+    }
+
     private static FoodItemForm ValidForm(int shelfId, int size, string name) => new()
     {
         Name = name,
@@ -534,20 +598,16 @@ public sealed class InventoryServiceTests
     private sealed class ServiceHost : IDisposable
     {
         public SqliteDbFactory Factory { get; } = new();
-        public FakeWebHostEnvironment Env { get; } = new();
+        public FakeImageStorage Storage { get; } = new();
         public SeedData Seed { get; }
         public InventoryService Inventory { get; }
 
         public ServiceHost()
         {
             Seed = TestData.Seed(Factory);
-            Inventory = new InventoryService(Factory, Env);
+            Inventory = new InventoryService(Factory, Storage, NullLogger<InventoryService>.Instance);
         }
 
-        public void Dispose()
-        {
-            Factory.Dispose();
-            Env.Dispose();
-        }
+        public void Dispose() => Factory.Dispose();
     }
 }

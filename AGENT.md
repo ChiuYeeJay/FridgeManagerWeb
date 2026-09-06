@@ -23,7 +23,7 @@ placement, per-user item quotas and per-shelf capacity.
 | Auth | ASP.NET Core Identity with roles (`Admin`, `User`) |
 | Tests | xUnit, EF Core SQLite `:memory:` (`tests/FridgeManager.Tests`) |
 | Styling | `wwwroot/css/theme.css` (`fm-*` primitives); Bootstrap only for residual template widgets |
-| Deployment | Docker (non-root `app` user, port 8080) → Render Web Service + Render PostgreSQL; Cloudflare R2 (Phase 6); Gemini REST (Phase 7, no SDK) |
+| Deployment | Docker (non-root `app` user, port 8080) → Render Web Service + Render PostgreSQL; Cloudflare R2 via `IImageStorage`; Gemini REST (Phase 7, no SDK) |
 
 ## Build, run, test
 
@@ -105,8 +105,9 @@ Architecture rules:
 
 - Production is a **single** application instance. Do not add Redis, distributed
   SignalR, Kubernetes, message queues, or extra microservices.
-- Image processing: SixLabors.ImageSharp only. Do not add a second image
-  library or a Gemini SDK.
+- Image processing: SixLabors.ImageSharp **3.1.12** only (4.x needs a license
+  key and breaks Release publish). Do not add a second image library or a
+  Gemini SDK.
 - After changing `Program.cs` or `Components/App.razor`, re-check SPEC §3.
 - Configuration sections are `Seed`, `ImageStorage`, `R2`, and `Gemini`. Secrets
   live in `dotnet user-secrets` (local) or Render environment variables
@@ -121,15 +122,16 @@ Architecture rules:
 | `FridgeManager.csproj` | Web project (repository root) |
 | `Dockerfile` / `.dockerignore` | Production image; builds the web csproj only |
 | `docker-compose.yml` | Local production-container + Postgres demo |
+| `render.yaml` | Render Blueprint (web + Postgres); secrets are `sync: false` |
 | `Components/Pages` | `Home.razor` (dashboard), `FoodList`, `FoodDetail`, `FoodForm` (+ `.razor.cs`), `AdminUsers` |
 | `Components/Shared` | `FoodCard`, `FoodFilterBar`, `FridgeElevation`, `ErrorFallback`, `PasswordRevealButton` |
 | `Components/Account` | Template Identity pages — see convention 2; do not change in the extension |
-| `Services` | `InventoryService`, `CapacityService`, `UserAdminService`, `CapacityQueries`, `ExpiryRules`, `FoodDisplay`, `UserClaims`, `UploadPaths`, `LocalUrls`, `FoodListState`, `FoodSortPreference` |
+| `Services` | `InventoryService`, `CapacityService`, `UserAdminService`, `IImageStorage`, `LocalImageStorage`, `R2ImageStorage`, `ImageNormalizer`, `CapacityQueries`, `ExpiryRules`, `FoodDisplay`, `UserClaims`, `UploadPaths`, `LocalUrls`, `NpgsqlConnectionStrings`, `FoodListState`, `FoodSortPreference` |
 | `Services/Models` | `FoodItemForm`, `FoodFilter`, `FoodSort`, `OperationResult`, `DashboardStats`, `*Dto` |
-| `Data` | `AppDbContext`, `DbSeeder`, `StartupBootstrap`, `SeedOptions`, `Entities/`, `Enums/`, `Migrations/` |
+| `Data` | `AppDbContext` (`IDataProtectionKeyContext`), `DbSeeder`, `StartupBootstrap`, `SeedOptions`, `Entities/`, `Enums/`, `Migrations/` |
 | `wwwroot/css/theme.css` | Design tokens and `fm-*` classes from the mockup |
 | `wwwroot/images/categories` | Default plate per category (`{category}.webp`) |
-| `wwwroot/uploads` | User photos, gitignored; served at runtime via `UseStaticFiles` |
+| `wwwroot/uploads` | Local-provider photos (`food-images/yyyy/MM/…`), gitignored; served at runtime via `UseStaticFiles` |
 | `ref/mockup` | UI source of truth (`Fridge Manager Mockups.dc.html`) |
 | `tests/FridgeManager.Tests` | `SqliteDbFactory`, `TestData`, `Principals`, service and filter tests |
 | `.github/workflows/ci.yml` | Planned in Phase 9 |
@@ -149,8 +151,7 @@ Architecture rules:
 
 ## Project status and scope
 
-SPEC §10 Phases 1–4 are done. Continue with SPEC_EXTENSIONS §10 Phases 5–9
-(currently Phase 5). Phase 10 starts only when explicitly requested.
+SPEC §10 Phases 1–4 are done. SPEC_EXTENSIONS Phases 5–6 are done. Continue with Phase 7 (AI photo autofill). Phase 10 starts only when explicitly requested.
 
 Out of scope (SPEC_EXTENSIONS §0.1): status history, expiry notifications,
 multiple images per food item, announcement board, placement recommendation,

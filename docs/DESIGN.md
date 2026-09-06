@@ -27,7 +27,9 @@ StartupBootstrap (roles; first Admin from Seed:Admin*; optional DbSeeder when Se
 Development only: DbSeeder.SeedDemoDataAsync
 ```
 
-Components never inject `AppDbContext`. Every service method that talks to EF opens a context with `await using var db = await _factory.CreateDbContextAsync()` and disposes it before returning. Identity still receives a scoped `AppDbContext` resolved from the same factory (`Program.cs`). `UserAdminService` also uses `UserManager<ApplicationUser>` for create, role assignment, and security-stamp updates. `PersistKeysToDbContext` is Phase 6.
+Components never inject `AppDbContext`. Every service method that talks to EF opens a context with `await using var db = await _factory.CreateDbContextAsync()` and disposes it before returning. Identity still receives a scoped `AppDbContext` resolved from the same factory (`Program.cs`). `UserAdminService` also uses `UserManager<ApplicationUser>` for create, role assignment, and security-stamp updates. Data Protection keys persist in PostgreSQL via `PersistKeysToDbContext<AppDbContext>()` (`SetApplicationName("FridgeManager")`).
+
+`IImageStorage` is a **Singleton** (`LocalImageStorage` or `R2ImageStorage` from `ImageStorage:Provider`). `InventoryService` depends on the interface, not the filesystem or R2.
 
 Authorization is enforced in services (`UserClaims.CanModify`, `UserClaims.IsAdmin`). Pages may hide buttons with the same helpers; hiding UI is not the security boundary.
 
@@ -37,7 +39,7 @@ Authorization is enforced in services (`UserClaims.CanModify`, `UserClaims.IsAdm
 
 ```text
 FoodForm.razor
-  → optional InventoryService.SaveImageAsync(IBrowserFile, ClaimsPrincipal)
+  → optional InventoryService.SaveImageAsync (validate → ImageNormalizer → IImageStorage)
   → InventoryService.CreateItemAsync(form, ClaimsPrincipal)
       → owner from NameIdentifier
       → UserUsage < ItemQuota
@@ -68,13 +70,14 @@ Expected rule violations never throw. They return `OperationResult` / `Operation
 | `Components/Pages` | Dashboard (`Home.razor`), `FoodList`, `FoodDetail`, `FoodForm`, `AdminUsers` |
 | `Components/Shared` | `FoodCard`, `FoodFilterBar`, `FridgeElevation`, `ErrorFallback`, `PasswordRevealButton` |
 | `Components/Account` | Template Identity pages; static SSR. Markup/styles may change; `[ExcludeFromInteractiveRouting]`, form POST handlers, and Identity services must not move out. |
-| `Services` | `InventoryService`, `CapacityService`, `UserAdminService`, `CapacityQueries`, `ExpiryRules`, `FoodDisplay`, `UserClaims`, `UploadPaths`, `LocalUrls`, `FoodListState`, `FoodSortPreference` |
+| `Services` | `InventoryService`, `CapacityService`, `UserAdminService`, `IImageStorage` / `LocalImageStorage` / `R2ImageStorage`, `ImageNormalizer`, `CapacityQueries`, `ExpiryRules`, `FoodDisplay`, `UserClaims`, `UploadPaths`, `LocalUrls`, `NpgsqlConnectionStrings`, `FoodListState`, `FoodSortPreference` |
 | `Services/Models` | Forms, filters, `FoodSort`, DTOs, `OperationResult` |
-| `Data` | `AppDbContext`, `DbSeeder`, `StartupBootstrap`, `SeedOptions`, entities, enums, migrations |
+| `Data` | `AppDbContext` (`IDataProtectionKeyContext`), `DbSeeder`, `StartupBootstrap`, `SeedOptions`, entities, enums, migrations |
 | `Dockerfile` / `.dockerignore` | Production image; publishes the root `FridgeManager.csproj` only |
 | `docker-compose.yml` | Local production container + Postgres (throw-away `Seed__*` values) |
+| `render.yaml` | Render Blueprint: free web service + free Postgres; secrets are `sync: false` |
 | `wwwroot/css/theme.css` | Mockup tokens and `fm-*` primitives |
-| `wwwroot/uploads` | User photos, gitignored; runtime files served with `UseStaticFiles` |
+| `wwwroot/uploads` | Local-provider photos (`food-images/yyyy/MM/…`), gitignored; runtime files served with `UseStaticFiles` |
 | `tests/FridgeManager.Tests` | xUnit + EF Core SQLite `:memory:` |
 
 ## Guards (SPEC §6.3)
@@ -119,21 +122,24 @@ Filter state lives in the `/food?...` query string (`FoodFilter.ToQuery` / `From
 
 `FoodFilter.CurrentUserId` is not an authorization check; `GetItemsAsync` returns whatever the filter asks for. Pages require `[Authorize]`.
 
-## Image upload (SPEC §8.6)
+## Image upload (SPEC_EXTENSIONS §4)
 
 `InventoryService.SaveImageAsync` accepts a single `IBrowserFile` and a signed-in `ClaimsPrincipal`:
 
 - Caller must have a `NameIdentifier`
-- Content type must be `image/jpeg`, `image/png`, or `image/webp`
+- Content type must be `image/jpeg`, `image/png`, or `image/webp` (cheap gate)
 - File bytes must match that type’s magic header (`UploadPaths.HasMatchingMagic`)
-- Size cap `OpenReadStream(5 * 1024 * 1024)`
-- Filename is `Guid.NewGuid("N")` plus a server-chosen extension; the client name is discarded
-- File is written under `wwwroot/uploads/`; the database stores `/uploads/{guid}.ext`
-- `ImagePath` on create/update must be empty or that same `/uploads/{guid}.{jpg|png|webp}` shape (`UploadPaths.IsSafeStoredPath`)
-- If create/update fails after an upload, `FoodForm` calls `DeleteImageAsync` so the file is not left behind
-- `/uploads` is served only to authenticated users (`Program.cs`); responses get `X-Content-Type-Options: nosniff`. Runtime files are served with `UseStaticFiles` on `/uploads` because `MapStaticAssets` only includes files known at publish time.
+- Size cap `OpenReadStream(5 * 1024 * 1024)` before buffering
+- ImageSharp decode is authoritative; `ImageNormalizer` applies `AutoOrient()`, strips Exif/Iptc/Xmp/Icc, caps the long edge at 2000 px (never upscales), and re-encodes lossy WebP quality 80
+- Storage key is server-generated: `food-images/{yyyy}/{MM}/{guid:N}.webp` (`UploadPaths.NewStorageKey`). Client filenames are discarded
+- `IImageStorage.SaveAsync` stores the bytes; the database keeps the key in `FoodItem.ImagePath`
+- Create/update reject any `ImagePath` that fails `UploadPaths.IsSafeStorageKey`
+- After a successful update that changes the key, the previous object is deleted best-effort (warning log on failure, operation still succeeds)
+- If create/update fails after an upload, `FoodForm` calls `DeleteImageAsync` → `IImageStorage.DeleteAsync`
+- `LocalImageStorage` writes `wwwroot/uploads/{key}` and serves `/uploads/{key}`. `/uploads` is authenticated + `X-Content-Type-Options: nosniff`. Runtime files use `UseStaticFiles` because `MapStaticAssets` only includes files known at publish time
+- `R2ImageStorage` uses AWSSDK.S3 against Cloudflare R2 (`ForcePathStyle`, region `auto`, payload signing and default checksum validation disabled). `GetPublicUrl` is `{PublicBaseUrl}/{key}`
 
-`FoodForm` reads the chosen file into memory for preview, then calls `SaveImageAsync` on submit and sets `FoodItemForm.ImagePath`. Cards and detail resolve a safe `ImagePath` if present, otherwise `/images/categories/{category}.webp`.
+`FoodDisplay.ImageUrl(FoodItem, IImageStorage)` is the only resolver used by cards, detail, and the form preview: a non-null public URL, otherwise `/images/categories/{category}.webp`. Legacy `/uploads/{guid}.ext` values and any unsafe string resolve to the category plate.
 
 Logout and Identity `ReturnUrl` values go through `LocalUrls.Sanitize` so only same-origin relative paths are followed.
 
@@ -165,13 +171,13 @@ Dashboard shelf remaining is the `FridgeElevation` chip row (chip flex grows wit
 |---|---|
 | `.tag` / `.btn` / `.table` / `.field` / `.input` / `.seg` | `.fm-tag` / `.fm-btn` / `.fm-table` / `.fm-field` / `.fm-input` / `.fm-seg` |
 | Expired outline | `--color-danger` stroke, never a fill |
-| Category plate | `/images/categories/{category}.webp` when `ImagePath` is empty or unsafe |
+| Category plate | `/images/categories/{category}.webp` when `IImageStorage.GetPublicUrl` is null |
 
 ## Tests
 
 `SqliteDbFactory` holds one open `Data Source=:memory:` connection and calls `EnsureCreated` once. Each inventory/capacity test seeds a small fridge (Shelf A at capacity 5, Alice at quota 2) so the guards are demonstrable without the production seeder.
 
-`UserAdminServiceTests` and `StartupBootstrapTests` build a real `UserManager` / `RoleManager` on that factory. `SaveImageTests` uses a temp `IWebHostEnvironment.WebRootPath` and a fake `IBrowserFile`. `UploadPaths` and `LocalUrls` are tested as pure helpers.
+`UserAdminServiceTests` and `StartupBootstrapTests` build a real `UserManager` / `RoleManager` on that factory. Inventory tests inject `FakeImageStorage`. `SaveImageTests` uses `LocalImageStorage` plus a temp `IWebHostEnvironment.WebRootPath` and real tiny JPEG/PNG/WebP bytes from ImageSharp. `ImageNormalizerTests` cover EXIF strip, orientation, 2000 px cap, and no upscale. `UploadPaths` and `NpgsqlConnectionStrings` are tested as pure helpers.
 
 The SPEC §11 list is the minimum. Add a test in `tests/FridgeManager.Tests` whenever a service rule or filter changes.
 
@@ -186,17 +192,21 @@ Accepted product decisions now live in the spec and in [adr/](adr/). What remain
 - Runtime uploads are served with `UseStaticFiles` for `/uploads` in addition to `MapStaticAssets`, so files written after publish are reachable. The auth/`nosniff` middleware still runs first.
 - SPEC_EXTENSIONS §6.5 clears `ForwardedHeadersOptions.KnownNetworks`; that property is obsolete in .NET 10, so `Program.cs` clears `KnownIPNetworks` instead (same intent: trust Render’s proxy).
 - The web project references `Microsoft.AspNetCore.App.Internal.Assets` (the SDK auto-reference is not enough in a clean Docker publish). The Dockerfile fails the build if `wwwroot/_framework/blazor.web.js` is missing, because Interactive Server with prerender off is a blank page without it.
+- If `ConnectionStrings:DefaultConnection` is absent, `NpgsqlConnectionStrings.FromDatabaseUrl` accepts Render’s `DATABASE_URL` (`postgresql://…`) and appends `SSL Mode=Require;Trust Server Certificate=true`. Render Blueprints cannot interpolate variables, so this is how [`render.yaml`](../render.yaml) wires Postgres on first deploy. An explicit `ConnectionStrings__DefaultConnection` still wins.
+- `R2ImageStorage` sets `DisablePayloadSigning` and `DisableDefaultChecksumValidation` on `PutObjectRequest`, and `RequestChecksumCalculation` / `ResponseChecksumValidation` to `WHEN_REQUIRED` on the client. Cloudflare R2 does not support the Streaming SigV4 checksum scheme AWSSDK.S3 uses by default.
+- Image processing uses **SixLabors.ImageSharp 3.1.12** (Apache-2.0). 4.x requires a Six Labors license key and fails `dotnet publish -c Release` (Docker / CI) without one. The APIs this app needs (`AutoOrient`, metadata strip, `WebpEncoder`) are unchanged.
+- Data Protection keys are stored in PostgreSQL without an XML encryptor (ASP.NET logs a warning). Acceptable for this demo; do not add a certificate solely to silence it.
 
 ## Known limitations (do not “fix”)
 
 Do not “fix”: capacity check race, single Interactive Server instance (no Redis / sticky-session scale-out), no audit trail, approximate size units, disable delay up to 30 minutes, Identity template remnants.
 
-SPEC_EXTENSIONS §0.1 overrides the former local-only uploads, orphan files on replacement, missing-file 404, `/uploads/{guid}.ext` path shape, local-demo-only, and “no AI” items. Those are in progress (R2 and ImageSharp in Phase 6, Gemini in Phase 7). Until then, Development and docker compose still use `wwwroot/uploads/`.
+SPEC_EXTENSIONS §0.1 overrides the former local-only uploads, orphan files on replacement, missing-file 404, `/uploads/{guid}.ext` path shape, and local-demo-only items. Those are implemented: Development and docker compose use `LocalImageStorage`; production uses R2. Gemini remains Phase 7.
 
 Also accepted for the extension (SPEC_EXTENSIONS §9):
 
 - One application instance; horizontal scaling is not implemented.
 - Free Render web services spin down after inactivity and cold-start slowly; free Render PostgreSQL expires after 30 days.
-- R2 demo images will be publicly readable by URL (Phase 6).
+- R2 demo images are publicly readable by URL.
 - Gemini is an external dependency; availability and quota may disable autofill (Phase 7).
 - AI recognition may be inaccurate and cannot invent expiration dates (Phase 7).

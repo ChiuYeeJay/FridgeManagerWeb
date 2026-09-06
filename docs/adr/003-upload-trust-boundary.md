@@ -23,4 +23,8 @@ Treat uploaded bytes and stored paths as untrusted.
 
 ## Consequences
 
-Photos are not publicly cacheable without a session cookie. A missing file at a still-safe path 404s instead of falling back to the category plate. Replacing a photo does not delete the previous file (SPEC §13).
+Photos served from local storage are not publicly cacheable without a session cookie. R2 demo images are publicly readable by URL (SPEC_EXTENSIONS §4.6).
+
+## Amendment (Phase 6)
+
+SPEC_EXTENSIONS §4.3 replaces the stored path shape with the provider-neutral key `food-images/{yyyy}/{MM}/{guid:N}.webp` (`UploadPaths.IsSafeStorageKey`). Magic-byte + content-type checks remain; ImageSharp decode is now the authoritative format check, and every upload is re-encoded as WebP. Replacement deletes the previous object best-effort. Missing or unsafe keys fall back to the category plate.

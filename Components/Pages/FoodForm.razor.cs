@@ -25,6 +25,9 @@ public partial class FoodForm
     [Inject]
     private FoodListState ListState { get; set; } = default!;
 
+    [Inject]
+    private IImageStorage ImageStorage { get; set; } = default!;
+
     [CascadingParameter]
     private Task<AuthenticationState> AuthState { get; set; } = default!;
 
@@ -49,8 +52,7 @@ public partial class FoodForm
     private bool IsEdit => Id > 0;
 
     private string? PhotoSrc
-        => _previewUrl
-           ?? (UploadPaths.IsSafeStoredPath(Form.ImagePath) ? Form.ImagePath : null);
+        => _previewUrl ?? ImageStorage.GetPublicUrl(Form.ImagePath);
 
     private string CancelHref => IsEdit ? $"food/{Id}" : ListState.LastListUrl;
 

@@ -1,15 +1,18 @@
 using FridgeManager.Data.Entities;
 using FridgeManager.Data.Enums;
+using Microsoft.AspNetCore.DataProtection.EntityFrameworkCore;
 using Microsoft.AspNetCore.Identity.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore;
 
 namespace FridgeManager.Data;
 
-public class AppDbContext(DbContextOptions<AppDbContext> options) : IdentityDbContext<ApplicationUser>(options)
+public class AppDbContext(DbContextOptions<AppDbContext> options)
+    : IdentityDbContext<ApplicationUser>(options), IDataProtectionKeyContext
 {
     public DbSet<Refrigerator> Refrigerators => Set<Refrigerator>();
     public DbSet<Shelf> Shelves => Set<Shelf>();
     public DbSet<FoodItem> FoodItems => Set<FoodItem>();
+    public DbSet<DataProtectionKey> DataProtectionKeys => Set<DataProtectionKey>();
 
     protected override void OnModelCreating(ModelBuilder builder)
     {
