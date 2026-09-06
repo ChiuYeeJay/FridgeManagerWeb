@@ -40,6 +40,7 @@ public partial class FoodForm : IDisposable
 
     private readonly FoodItemForm Form = new();
     private readonly HashSet<string> _aiFields = new(StringComparer.Ordinal);
+    private readonly HashSet<string> _userFilledFields = new(StringComparer.Ordinal);
     private EditForm? _editForm;
     private IReadOnlyList<ShelfUsageDto> _shelves = [];
     private IReadOnlyList<string> _aiWarnings = [];
@@ -217,7 +218,7 @@ public partial class FoodForm : IDisposable
     private void OnNameInput(ChangeEventArgs e)
     {
         Form.Name = e.Value?.ToString() ?? "";
-        ClearAi(nameof(FoodItemForm.Name));
+        MarkUserFilled(nameof(FoodItemForm.Name));
         var context = _editForm?.EditContext;
         context?.NotifyFieldChanged(new FieldIdentifier(Form, nameof(FoodItemForm.Name)));
     }
@@ -225,19 +226,19 @@ public partial class FoodForm : IDisposable
     private void SetExpiryDays(int days)
     {
         Form.ExpirationDate = DateOnly.FromDateTime(DateTime.UtcNow).AddDays(days);
-        ClearAi(nameof(FoodItemForm.ExpirationDate));
+        MarkUserFilled(nameof(FoodItemForm.ExpirationDate));
     }
 
     private void SetExpiryMonths(int months)
     {
         Form.ExpirationDate = DateOnly.FromDateTime(DateTime.UtcNow).AddMonths(months);
-        ClearAi(nameof(FoodItemForm.ExpirationDate));
+        MarkUserFilled(nameof(FoodItemForm.ExpirationDate));
     }
 
     private void SetExpiryYears(int years)
     {
         Form.ExpirationDate = DateOnly.FromDateTime(DateTime.UtcNow).AddYears(years);
-        ClearAi(nameof(FoodItemForm.ExpirationDate));
+        MarkUserFilled(nameof(FoodItemForm.ExpirationDate));
     }
 
     private void OnPhotoDragEnter()
@@ -300,15 +301,32 @@ public partial class FoodForm : IDisposable
     private string FieldInputClass(string field)
         => IsAi(field) ? "fm-input is-ai" : "fm-input";
 
-    private void ClearAi(string field) => _aiFields.Remove(field);
+    private void MarkUserFilled(string field)
+    {
+        _aiFields.Remove(field);
+        if (IsBlankUserField(field))
+        {
+            _userFilledFields.Remove(field);
+            return;
+        }
 
-    private void ClearAiCategory() => ClearAi(nameof(FoodItemForm.Category));
+        _userFilledFields.Add(field);
+    }
 
-    private void ClearAiSize() => ClearAi(nameof(FoodItemForm.SizeUnits));
+    private bool IsBlankUserField(string field) => field switch
+    {
+        nameof(FoodItemForm.Name) => string.IsNullOrWhiteSpace(Form.Name),
+        nameof(FoodItemForm.Note) => string.IsNullOrWhiteSpace(Form.Note),
+        _ => false
+    };
 
-    private void ClearAiExpiry() => ClearAi(nameof(FoodItemForm.ExpirationDate));
+    private void MarkUserCategory() => MarkUserFilled(nameof(FoodItemForm.Category));
 
-    private void ClearAiNote() => ClearAi(nameof(FoodItemForm.Note));
+    private void MarkUserSize() => MarkUserFilled(nameof(FoodItemForm.SizeUnits));
+
+    private void MarkUserExpiry() => MarkUserFilled(nameof(FoodItemForm.ExpirationDate));
+
+    private void MarkUserNote() => MarkUserFilled(nameof(FoodItemForm.Note));
 
     private void OnPhotoError()
     {
@@ -361,7 +379,7 @@ public partial class FoodForm : IDisposable
             }
 
             _aiFields.Clear();
-            foreach (var field in result.Value.ApplyTo(Form))
+            foreach (var field in result.Value.ApplyTo(Form, _userFilledFields))
             {
                 _aiFields.Add(field);
             }

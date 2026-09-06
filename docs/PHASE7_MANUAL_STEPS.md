@@ -32,7 +32,7 @@ dotnet run
 3. Choose a **non-sensitive** food photo (a labelled yogurt or milk carton is ideal).
 4. Read the disclosure under the photo. It must be visible **before** you click **Analyze with AI**.
 5. Click **Analyze with AI**. The button should disable and show `Analyzing photo...`.
-6. Suggested Name / Category / Size / Expiration (only if a date is printed) overwrite those fields and show an **AI** tag. Empty suggestions leave your typed values alone.
+6. Suggested Name / Category / Size / Expiration (only if a date is printed) fill fields you have not typed or changed, and show an **AI** tag. Values you already entered stay. Empty suggestions leave the current value alone.
 7. Edit a suggested field: the AI tag on that control should disappear.
 8. Pick a shelf (AI never sets shelf, owner, sharing, or position) and **Save item**. The item is created through the existing quota and capacity checks.
 9. Open DevTools → Network. The browser must not send `Gemini__ApiKey` or call `generativelanguage.googleapis.com` directly.
@@ -77,7 +77,8 @@ Allow a cold start on the free plan (up to about a minute). Use a **non-sensitiv
 
 - [ ] `/food/new` without a photo: Analyze is not shown
 - [ ] After choosing a photo: disclosure is visible, then **Analyze with AI**
-- [ ] A successful analysis fills reasonable fields and marks them **AI**
+- [ ] A successful analysis fills untouched fields and marks them **AI**
+- [ ] Name / Category / Size / Expiration / Note you already typed or selected are not overwritten
 - [ ] A null expiration (no printed date) does not overwrite the date you already typed
 - [ ] Editing a marked field clears that control’s AI tag
 - [ ] Save still requires a shelf and still enforces quota / capacity

@@ -962,8 +962,11 @@ AI analysis could not be completed. You can continue filling the form manually.
 
 After a successful analysis, for each of the four supported fields:
 
-- a **non-null** suggestion overwrites the current form value and marks the control as AI-suggested (an `fm-tag` "AI" beside the label and a subtle border; cleared when the user edits that control)
+- a **non-null** suggestion fills the field only when the user has not already typed or selected a value, and then marks the control as AI-suggested (an `fm-tag` "AI" beside the label and a subtle border; cleared when the user edits that control)
+- a **non-null** suggestion must not overwrite a value the user has already entered; that control shows no new AI marker
 - a **null** suggestion leaves the current value untouched and shows no marker
+
+Create-form defaults (empty Name / Note, `Category` Drink, `SizeUnits` 1, expiration set to today) are not user-entered. The user must type or change a control before that field is protected. Clearing Name or Note back to blank makes the field fillable again. A later analysis may update a field that is still AI-suggested and was never edited.
 
 Warnings from the result are shown once in an info alert above the form.
 
@@ -1220,7 +1223,7 @@ The required extension is complete only when all non-optional items are true.
 [ ] AI cannot set owner, shelf, sharing status, status, or PositionNote
 [ ] AI never creates the item directly
 [ ] unreadable expiration date results in no AI date
-[ ] non-null suggestions overwrite and are marked; null suggestions leave values untouched
+[ ] non-null suggestions fill unentered fields and are marked; user-entered values and null suggestions stay untouched
 [ ] AI fields remain editable and the marker clears on edit
 [ ] per-user rate limit is enforced (Singleton limiter)
 [ ] duplicate clicks do not create duplicate requests

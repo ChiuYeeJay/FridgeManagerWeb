@@ -63,7 +63,7 @@ FoodForm.razor
       → ImageNormalizer.Normalize(bytes, 1600 px) → WebP, no metadata
       → IFoodImageAnalyzer.AnalyzeAsync(processed WebP)
       → sanitize Name / Category / ExpirationDate / SizeUnits (§8.6)
-  → non-null fields overwrite the form and are marked AI; null fields stay as the user typed them
+  → non-null fields fill untouched controls and are marked AI; user-entered values and null fields stay as typed
   → Save still goes through CreateItemAsync (quota, capacity, authorization)
 ```
 
@@ -169,7 +169,7 @@ Available on `/food/new` only. It fills the existing form; it never creates a `F
 
 `GeminiOptions` binds `Gemini__Enabled` (default false), `Gemini__ApiKey`, `Gemini__Model` (`gemini-3.5-flash-lite`), `Gemini__TimeoutSeconds` (20), `Gemini__MaxRequestsPerUserPerHour` (20). When Enabled is true, `ApiKey` is required (`ValidateOnStart`). `GeminiFoodImageAnalyzer` uses a named `HttpClient` (`Timeout = TimeoutSeconds`) against `https://generativelanguage.googleapis.com/v1beta/models/{Model}:generateContent` with header `x-goog-api-key`. No Gemini SDK. The request sends the processed WebP as `inlineData` plus the §8.9 instruction (sizeUnits explained as palm-wrap / one-hand lift / two-hand lift), with `generationConfig.responseMimeType` / `responseSchema` and `thinkingConfig.thinkingLevel = minimal`. HTTP 503 is retried once after 400 ms. Failures return a user-facing message (timeout, temporary unavailability, quota, or the §8.13 sentence) and are logged at warning with HTTP status, `finishReason`, and a short body preview — never the API key or image bytes. A successful parse logs the mapped fields at Information. A cancelled circuit token is rethrown.
 
-`FoodImageAnalysisResult.ApplyTo` overwrites non-null `Name`, `Category`, `ExpirationDate`, `SizeUnits`, and `Note`. Those controls get an `fm-tag` "AI" and `.is-ai` border, cleared when the user edits that control. `warnings` is analysis-only (no food found, unreadable date) and appears once in an `fm-alert-info`; packaging cautions belong in `Note`. Owner, shelf, sharing, status, and position note stay user-controlled. Submit is still `InventoryService.CreateItemAsync`.
+`FoodImageAnalysisResult.ApplyTo` fills non-null `Name`, `Category`, `ExpirationDate`, `SizeUnits`, and `Note` only when `FoodForm` has not marked that control as user-entered. Touched fields are passed in and left alone (no AI marker). Untouched create-form defaults can still be filled. Those applied controls get an `fm-tag` "AI" and `.is-ai` border, cleared when the user edits that control. `warnings` is analysis-only (no food found, unreadable date) and appears once in an `fm-alert-info`; packaging cautions belong in `Note`. Owner, shelf, sharing, status, and position note stay user-controlled. Submit is still `InventoryService.CreateItemAsync`.
 
 Card, detail, and the form preview fall back to the category plate if a stored or preview URL fails to load (`@onerror`). The form preview is a compact 800 px WebP data URL so a long AI render does not keep a multi-megabyte `data:` URL in the circuit.
 
@@ -182,7 +182,7 @@ Card, detail, and the form preview fall back to the category plate if a stored o
 - `ShelfUsageDto` / `UserUsageDto` — live capacity and allowance panels.
 - `DashboardStats` — assembled in `CapacityService.GetDashboardStatsAsync` (shelves with filtered-include of Active items + active users). Empty shelves and members with zero items still appear. Expiring, expired, shared, and utilisation figures use that same Active set.
 - `AdminUserDto` — admin table row: username, email, quota, active count, status, admin flag. `GetUsersAsync` returns this instead of `ApplicationUser` so password hashes never reach the UI.
-- `FoodImageAnalysisResult` — Gemini / fake analyzer output (`Name`, `Category`, `ExpirationDate`, `SizeUnits`, `Warnings`) plus `ApplyTo` for the create form.
+- `FoodImageAnalysisResult` — Gemini / fake analyzer output (`Name`, `Category`, `ExpirationDate`, `SizeUnits`, `Warnings`) plus `ApplyTo` for the create form (skips user-entered fields).
 
 ## Errors
 

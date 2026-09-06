@@ -110,7 +110,7 @@ R2 credentials never reach the browser. Demo images on R2 are publicly readable 
 
 ## AI photo autofill
 
-On `/food/new`, after you choose a photo, **Analyze with AI** sends a processed copy (oriented, metadata stripped, long edge capped at 1600 px, re-encoded as WebP) to Google Gemini. The original filename, EXIF, user identity, and database ids are not sent. Suggestions may fill **Name**, **Category**, **Expiration date**, and **Size** only. Review and edit them before saving; submit still goes through the normal quota, shelf-capacity, and authorization checks. The model must not invent an expiration date unless one is visibly printed.
+On `/food/new`, after you choose a photo, **Analyze with AI** sends a processed copy (oriented, metadata stripped, long edge capped at 1600 px, re-encoded as WebP) to Google Gemini. The original filename, EXIF, user identity, and database ids are not sent. Suggestions may fill **Name**, **Category**, **Expiration date**, and **Size** only — fields you have already typed or selected are left alone. Review and edit them before saving; submit still goes through the normal quota, shelf-capacity, and authorization checks. The model must not invent an expiration date unless one is visibly printed.
 
 Do not upload sensitive or confidential images. Review [Google Gemini API terms](https://ai.google.dev/gemini-api/terms) before treating this as a production system. Availability and quota of Gemini may temporarily hide or fail autofill; you can always create the item by hand.
 

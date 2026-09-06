@@ -273,7 +273,7 @@ public sealed class GeminiFoodImageAnalyzer(
             {
                 ["responseMimeType"] = "application/json",
                 ["responseSchema"] = ResponseSchema(),
-                ["thinkingConfig"] = new JsonObject { ["thinkingLevel"] = "MINIMAL" }
+                ["thinkingConfig"] = new JsonObject { ["thinkingLevel"] = "minimal" }
             }
         };
 

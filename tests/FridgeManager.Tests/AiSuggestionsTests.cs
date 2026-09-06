@@ -9,7 +9,7 @@ namespace FridgeManager.Tests;
 public sealed class AiSuggestionsTests
 {
     [Fact]
-    public void ApplyTo_OverwritesNonNullAndLeavesNullUntouched()
+    public void ApplyTo_FillsNonNullWhenNoFieldsAreUserEntered()
     {
         var form = new FoodItemForm
         {
@@ -44,6 +44,79 @@ public sealed class AiSuggestionsTests
         Assert.Contains(nameof(FoodItemForm.SizeUnits), applied);
         Assert.Contains(nameof(FoodItemForm.Note), applied);
         Assert.DoesNotContain(nameof(FoodItemForm.ExpirationDate), applied);
+    }
+
+    [Fact]
+    public void ApplyTo_DoesNotOverwriteUserEnteredFields()
+    {
+        var form = new FoodItemForm
+        {
+            Name = "Manual name",
+            Category = FoodCategory.Other,
+            ExpirationDate = new DateOnly(2026, 1, 1),
+            SizeUnits = 3,
+            Note = "keep"
+        };
+        var userEntered = new HashSet<string>(StringComparer.Ordinal)
+        {
+            nameof(FoodItemForm.Name),
+            nameof(FoodItemForm.Category),
+            nameof(FoodItemForm.ExpirationDate),
+            nameof(FoodItemForm.SizeUnits),
+            nameof(FoodItemForm.Note)
+        };
+
+        var applied = new FoodImageAnalysisResult(
+            "Greek Yogurt",
+            FoodCategory.Snack,
+            new DateOnly(2026, 6, 15),
+            1,
+            "Keep upright",
+            []).ApplyTo(form, userEntered);
+
+        Assert.Equal("Manual name", form.Name);
+        Assert.Equal(FoodCategory.Other, form.Category);
+        Assert.Equal(new DateOnly(2026, 1, 1), form.ExpirationDate);
+        Assert.Equal(3, form.SizeUnits);
+        Assert.Equal("keep", form.Note);
+        Assert.Empty(applied);
+    }
+
+    [Fact]
+    public void ApplyTo_FillsOnlyFieldsTheUserDidNotEnter()
+    {
+        var form = new FoodItemForm
+        {
+            Name = "Manual name",
+            Category = FoodCategory.Drink,
+            ExpirationDate = new DateOnly(2026, 1, 1),
+            SizeUnits = 1,
+            Note = null
+        };
+        var userEntered = new HashSet<string>(StringComparer.Ordinal)
+        {
+            nameof(FoodItemForm.Name),
+            nameof(FoodItemForm.ExpirationDate)
+        };
+
+        var applied = new FoodImageAnalysisResult(
+            "Greek Yogurt",
+            FoodCategory.Snack,
+            new DateOnly(2026, 6, 15),
+            2,
+            "Keep upright",
+            []).ApplyTo(form, userEntered);
+
+        Assert.Equal("Manual name", form.Name);
+        Assert.Equal(FoodCategory.Snack, form.Category);
+        Assert.Equal(new DateOnly(2026, 1, 1), form.ExpirationDate);
+        Assert.Equal(2, form.SizeUnits);
+        Assert.Equal("Keep upright", form.Note);
+        Assert.DoesNotContain(nameof(FoodItemForm.Name), applied);
+        Assert.DoesNotContain(nameof(FoodItemForm.ExpirationDate), applied);
+        Assert.Contains(nameof(FoodItemForm.Category), applied);
+        Assert.Contains(nameof(FoodItemForm.SizeUnits), applied);
+        Assert.Contains(nameof(FoodItemForm.Note), applied);
     }
 
     [Fact]

@@ -65,7 +65,7 @@ else
                             }
                         </div>
                         <InputSelect id="item-category" class="@FieldInputClass(nameof(FoodItemForm.Category))"
-                                     @bind-Value="Form.Category" @bind-Value:after="ClearAiCategory">
+                                     @bind-Value="Form.Category" @bind-Value:after="MarkUserCategory">
                             @foreach (var category in Enum.GetValues<FoodCategory>())
                             {
                                 <option value="@category">@category</option>
@@ -80,7 +80,7 @@ else
                                 <span class="fm-tag fm-tag-accent">AI</span>
                             }
                         </div>
-                        <InputRadioGroup @bind-Value="Form.SizeUnits" @bind-Value:after="ClearAiSize">
+                        <InputRadioGroup @bind-Value="Form.SizeUnits" @bind-Value:after="MarkUserSize">
                             <div class="@SizeSegClass">
                                 <label class="fm-seg-opt"><InputRadio Value="@(1)" />Small · 1</label>
                                 <label class="fm-seg-opt"><InputRadio Value="@(2)" />Medium · 2</label>
@@ -100,7 +100,7 @@ else
                             }
                         </div>
                         <InputDate id="item-expiry" class="@ExpiryInputClass"
-                                   @bind-Value="Form.ExpirationDate" @bind-Value:after="ClearAiExpiry" />
+                                   @bind-Value="Form.ExpirationDate" @bind-Value:after="MarkUserExpiry" />
                     </div>
                     <div class="fm-field">
                         <span class="fm-field-label">&nbsp;</span>
@@ -153,7 +153,7 @@ else
                         }
                     </div>
                     <InputTextArea id="item-note" class="@FieldInputClass(nameof(FoodItemForm.Note))"
-                                   @bind-Value="Form.Note" @bind-Value:after="ClearAiNote"
+                                   @bind-Value="Form.Note" @bind-Value:after="MarkUserNote"
                                    placeholder="Anything the team should know" />
                 </div>
             </div>
