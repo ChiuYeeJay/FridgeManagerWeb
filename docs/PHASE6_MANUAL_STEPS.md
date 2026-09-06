@@ -43,21 +43,23 @@ docker compose up --build
 curl http://localhost:8080/health    # Should return 200 with body: Healthy
 ```
 
-Open http://localhost:8080 in a browser, log in with `admin@fridge.local` / `Passw0rd!`, and upload a photo (`ImageStorage__Provider=Local` in compose). When finished, you can run `docker compose down`.
+Open [http://localhost:8080](http://localhost:8080) in a browser, log in with `admin@fridge.local` / `Passw0rd!`, and upload a photo (`ImageStorage__Provider=Local` in compose). When finished, you can run `docker compose down`.
 
 ---
+
+
 
 ## 2. Cloudflare R2
 
 1. Sign in to the [Cloudflare Dashboard](https://dash.cloudflare.com/) → **R2 Object Storage**.
 2. Click **Create bucket**. For example, use `fridge-manager-images` (lowercase letters and hyphens are fine).
 3. Enable public read access (acceptable for a portfolio demo; do not upload sensitive photos):
-   - Easiest option: bucket **Settings** → **Public Development URL** (`https://pub-….r2.dev`). Save this URL as `R2__PublicBaseUrl`.
-   - Or bind a custom domain. Likewise, save the URL prefix that allows objects to be opened in a browser, without a trailing slash.
+  - Easiest option: bucket **Settings** → **Public Development URL** (`https://pub-….r2.dev`). Save this URL as `R2__PublicBaseUrl`.
+  - Or bind a custom domain. Likewise, save the URL prefix that allows objects to be opened in a browser, without a trailing slash.
 4. Go to **Manage R2 API Tokens** → create a token:
-   - Permission: **Object Read & Write** (it must at least allow `PutObject` / `DeleteObject`).
-   - Scope: restrict it to this bucket.
-   - Save the **Access Key ID** and **Secret Access Key** (the secret is shown only once).
+  - Permission: **Object Read & Write** (it must at least allow `PutObject` / `DeleteObject`).
+  - Scope: restrict it to this bucket.
+  - Save the **Access Key ID** and **Secret Access Key** (the secret is shown only once).
 5. Find the **Account ID** on the right side of Cloudflare or on the Overview page. The S3-compatible endpoint is:
 
 ```text
@@ -66,15 +68,19 @@ https://<ACCOUNT_ID>.r2.cloudflarestorage.com
 
 Use the following values later when configuring Render:
 
-| Variable | Value |
-|---|---|
-| `R2__ServiceUrl` | `https://<ACCOUNT_ID>.r2.cloudflarestorage.com` |
-| `R2__AccessKeyId` | API token access key |
-| `R2__SecretAccessKey` | API token secret |
-| `R2__BucketName` | bucket name |
-| `R2__PublicBaseUrl` | `https://pub-….r2.dev` (or custom domain, without a trailing `/`) |
+
+| Variable              | Value                                                             |
+| --------------------- | ----------------------------------------------------------------- |
+| `R2__ServiceUrl`      | `https://<ACCOUNT_ID>.r2.cloudflarestorage.com`                   |
+| `R2__AccessKeyId`     | API token access key                                              |
+| `R2__SecretAccessKey` | API token secret                                                  |
+| `R2__BucketName`      | bucket name                                                       |
+| `R2__PublicBaseUrl`   | `https://pub-….r2.dev` (or custom domain, without a trailing `/`) |
+
 
 ---
+
+
 
 ## 3. Push to GitHub
 
@@ -84,25 +90,29 @@ Render Blueprint reads `render.yaml` from the repository root, so make sure that
 
 ---
 
+
+
 ## 4. Create Render Resources with Blueprint
 
 1. Sign in to [Render](https://dashboard.render.com/) → **New** → **Blueprint**.
 2. Connect GitHub (if it is not connected yet), then select the `FridgeManagerWeb` repository and branch.
 3. Render will read `render.yaml` and create:
-   - Web Service `fridge-manager` (Docker, free, health check `/health`)
-   - PostgreSQL `fridge-db` (free, Postgres 18)
+  - Web Service `fridge-manager` (Docker, free, health check `/health`)
+  - PostgreSQL `fridge-db` (free, Postgres 18)
 4. During the first creation, Render will ask you to fill in all environment variables marked `sync: false` (when updating the Blueprint later, it **will not** ask again; new secrets must be changed manually in the Dashboard):
 
-| Field | Recommended Value |
-|---|---|
+
+| Field                 | Recommended Value                                                                                                                                                                                                                                                                                                                            |
+| --------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `Seed__AdminUserName` | Identity **user name** (also the display name; it must be unique). Use `admin` to match the demo data. If you want your own email, pick a name that does not collide with the demo users (`admin` / `alice` / `bob` / `carol`), or accept that the seeder will reuse this `admin` account and will not create a second `admin@fridge.local`. |
-| `Seed__AdminEmail` | The **sign-in email** (not the display name). Use `admin@fridge.local` to match the local demo account. A personal mailbox is fine, but do not set the previous field to `admin` and also expect a separate `admin@fridge.local` user. |
-| `Seed__AdminPassword` | A strong password that satisfies Identity rules (at least uppercase, lowercase, and numbers; the local demo password `Passw0rd!` is valid) |
-| `R2__ServiceUrl` | Account ID endpoint from the previous section |
-| `R2__AccessKeyId` | R2 access key |
-| `R2__SecretAccessKey` | R2 secret |
-| `R2__BucketName` | bucket name |
-| `R2__PublicBaseUrl` | public URL prefix |
+| `Seed__AdminEmail`    | The **sign-in email** (not the display name). Use `admin@fridge.local` to match the local demo account. A personal mailbox is fine, but do not set the previous field to `admin` and also expect a separate `admin@fridge.local` user.                                                                                                       |
+| `Seed__AdminPassword` | A strong password that satisfies Identity rules (at least uppercase, lowercase, and numbers; the local demo password `Passw0rd!` is valid)                                                                                                                                                                                                   |
+| `R2__ServiceUrl`      | Account ID endpoint from the previous section                                                                                                                                                                                                                                                                                                |
+| `R2__AccessKeyId`     | R2 access key                                                                                                                                                                                                                                                                                                                                |
+| `R2__SecretAccessKey` | R2 secret                                                                                                                                                                                                                                                                                                                                    |
+| `R2__BucketName`      | bucket name                                                                                                                                                                                                                                                                                                                                  |
+| `R2__PublicBaseUrl`   | public URL prefix                                                                                                                                                                                                                                                                                                                            |
+
 
 Safest first-deploy pair (same as local `docker compose`; sign-in email matches the demo account):
 
@@ -118,11 +128,13 @@ The following values are already fixed in the Blueprint and do not need to be en
 - `Seed__DemoData=true`
 - `DATABASE_URL` ← injected from the internal `connectionString` of `fridge-db` (the application converts it to Npgsql + `SSL Mode=Require`)
 
-5. Wait for the first deploy to become **Live**. On the free plan, a cold start may take about one minute.
+1. Wait for the first deploy to become **Live**. On the free plan, a cold start may take about one minute.
 
 If Blueprint creation fails, or if you prefer to create the Web Service manually: choose **Docker** as the Runtime, use `./Dockerfile` as the Dockerfile path, set the Health Check Path to `/health`, then copy the variables from the table above and the README into Environment.
 
 ---
+
+
 
 ## 5. First Login and Demo Data
 
@@ -130,47 +142,53 @@ If Blueprint creation fails, or if you prefer to create the Web Service manually
 2. Log in with the `Seed__AdminEmail` / `Seed__AdminPassword` values you entered.
 3. If `Seed__DemoData=true` and the database was initially empty, it should already contain a refrigerator, shelves, and about 25–30 food items (the same demo dataset as local development).
 4. **After confirming that the Admin account can log in**, go to Web Service → Environment and delete or clear:
-   - `Seed__AdminPassword`
-   - You may also remove `Seed__AdminUserName` and `Seed__AdminEmail`
-   - `Seed__DemoData` can remain `true` (if `FoodItem` records already exist, startup will not seed duplicate data)
+  - `Seed__AdminPassword`
+  - You may also remove `Seed__AdminUserName` and `Seed__AdminEmail`
+  - `Seed__DemoData` can remain `true` (if `FoodItem` records already exist, startup will not seed duplicate data)
 
 Do not expose passwords in logs or screenshots.
 
 ---
 
+
+
 ## 6. Acceptance Checklist (Check Each Item After Deployment)
 
 Perform these checks in the browser (if the free service has just woken up, allow time for the cold start):
 
-- [ ] `https://<your-service>/health` opens without authentication, returns HTTP 200, and the body contains only `Healthy`
-- [ ] No infinite redirect loop occurs (there should be no http/https bouncing)
-- [ ] After login, the Application cookie is **Secure** (DevTools → Application → Cookies)
-- [ ] Interactive pages work correctly (Blazor / SignalR uses `wss://` in Network, not `ws://`)
-- [ ] Add a food item and upload a **non-sensitive** JPG/PNG/WebP image:
+- [x] `https://<your-service>/health` opens without authentication, returns HTTP 200, and the body contains only `Healthy`
+- [x] No infinite redirect loop occurs (there should be no http/https bouncing)
+- [x] After login, the Application cookie is **Secure** (DevTools → Application → Cookies)
+- [x] Interactive pages work correctly (Blazor / SignalR uses `wss://` in Network, not `ws://`)
+- [x] Add a food item and upload a **non-sensitive** JPG/PNG/WebP image:
   - The image appears on the page
   - The R2 bucket contains `food-images/{year}/{month}/{32-character hex}.webp`
   - `R2__PublicBaseUrl` + `/` + the key can be opened in a logged-out/private tab (public read access for the demo)
-- [ ] Perform another Manual Deploy (or push a README whitespace change):
+- [x] Perform another Manual Deploy (or push a README whitespace change):
   - The same account remains logged in (cookie / Data Protection keys are still stored in Postgres)
   - The image you just uploaded still exists and was not lost when the container was rebuilt
-- [ ] Local `docker compose up --build` still works as an offline demo
+- [x] Local `docker compose up --build` still works as an offline demo
 
 Common causes when something fails:
 
 Render sometimes labels a **container startup crash** as a failed deploy/build; the Docker image itself may already have compiled. Read the last lines of the runtime log, not just the red status in the UI.
 
-| Symptom | Possible Cause |
-|---|---|
-| App exits immediately on startup; log says Admin is missing | Production does not have an Admin yet, and `Seed__Admin*` values are incomplete |
+
+| Symptom                                                            | Possible Cause                                                                                                                                                                                                                                                                               |
+| ------------------------------------------------------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| App exits immediately on startup; log says Admin is missing        | Production does not have an Admin yet, and `Seed__Admin*` values are incomplete                                                                                                                                                                                                              |
 | App exits on startup; log says `Username 'admin' is already taken` | `Seed__AdminUserName` is `admin`, but `Seed__AdminEmail` is not `admin@fridge.local`. The Blueprint creates that Admin first, then the demo seeder tries to create `admin@fridge.local` and collides. Redeploy a build that reuses the existing Admin; you do not need to wipe the database. |
-| Log shows `Cannot load library libgssapi_krb5.so.2` | Harmless. The slim image lacks the Kerberos library; later SQL still succeeds. |
-| App fails on startup with Npgsql / SSL errors | `DATABASE_URL` was not injected into the container, or it was changed to a connection string without SSL |
-| Upload returns 500; log mentions checksum / signature | R2 endpoint or credentials are incorrect; Streaming checksum is already disabled in the application, so if it still fails, verify `R2__ServiceUrl` first |
-| Page returns 403 / broken image | `R2__PublicBaseUrl` has an extra trailing `/`, or public read access is not enabled on the bucket |
-| Continuous redirect loop | HTTPS redirect was mistakenly enabled inside the container (the application does not call it in Production) |
-| Everyone is logged out after redeployment | The `DataProtectionKeys` table was not created (confirm migrations ran and the log contains no `Migrate` exception) |
+| Log shows `Cannot load library libgssapi_krb5.so.2`                | Harmless. The slim image lacks the Kerberos library; later SQL still succeeds.                                                                                                                                                                                                               |
+| App fails on startup with Npgsql / SSL errors                      | `DATABASE_URL` was not injected into the container, or it was changed to a connection string without SSL                                                                                                                                                                                     |
+| Upload returns 500; log mentions checksum / signature              | R2 endpoint or credentials are incorrect; Streaming checksum is already disabled in the application, so if it still fails, verify `R2__ServiceUrl` first                                                                                                                                     |
+| Page returns 403 / broken image                                    | `R2__PublicBaseUrl` has an extra trailing `/`, or public read access is not enabled on the bucket                                                                                                                                                                                            |
+| Continuous redirect loop                                           | HTTPS redirect was mistakenly enabled inside the container (the application does not call it in Production)                                                                                                                                                                                  |
+| Everyone is logged out after redeployment                          | The `DataProtectionKeys` table was not created (confirm migrations ran and the log contains no `Migrate` exception)                                                                                                                                                                          |
+
 
 ---
+
+
 
 ## 7. Free Plan Limitations (Document Them; Do Not Work Around Them in Code)
 
@@ -178,3 +196,4 @@ Render sometimes labels a **container startup crash** as a failed deploy/build; 
 - Render PostgreSQL (free) expires about 30 days after creation; export the data or change plans before it expires.
 - Anyone with the URL can view R2 demo images. Do not upload IDs, close-up face photos, or private documents.
 - Gemini is not connected yet (`Gemini__Enabled=false`). Add the API key in Phase 7.
+

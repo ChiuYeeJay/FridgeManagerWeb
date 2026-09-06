@@ -76,6 +76,22 @@ public sealed class ImageNormalizerTests
     }
 
     [Fact]
+    public void Normalize_CapsLongEdgeAtSpecifiedLimit()
+    {
+        using var image = new Image<Rgba32>(2000, 1000, Color.Blue);
+        using var encoded = new MemoryStream();
+        image.SaveAsPng(encoded);
+
+        var result = ImageNormalizer.Normalize(encoded.ToArray(), maxLongEdge: 1600);
+
+        Assert.NotNull(result);
+        using var decoded = Image.Load(result.Bytes);
+        Assert.Equal(1600, decoded.Width);
+        Assert.Equal(800, decoded.Height);
+        Assert.Equal("image/webp", result.ContentType);
+    }
+
+    [Fact]
     public void Normalize_UndecodableBytes_ReturnsNull()
         => Assert.Null(ImageNormalizer.Normalize("<html>not an image</html>"u8.ToArray()));
 }

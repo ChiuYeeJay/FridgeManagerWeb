@@ -30,21 +30,42 @@ else
         </div>
     }
 
+    @if (_aiWarnings.Count > 0)
+    {
+        <div class="fm-alert-info">
+            <div class="fm-alert-kicker">AI warnings</div>
+            <div class="fm-alert-body">@string.Join(" ", _aiWarnings)</div>
+        </div>
+    }
+
     <EditForm @ref="_editForm" Model="Form" OnValidSubmit="SaveAsync">
         <DataAnnotationsValidator />
         <div class="form-grid">
             <div class="form-stack">
                 <div class="fm-field">
-                    <label for="item-name">Name</label>
-                    <input id="item-name" class="fm-input" type="text" maxlength="200"
+                    <div class="fm-field-heading">
+                        <label for="item-name">Name</label>
+                        @if (IsAi(nameof(FoodItemForm.Name)))
+                        {
+                            <span class="fm-tag fm-tag-accent">AI</span>
+                        }
+                    </div>
+                    <input id="item-name" class="@FieldInputClass(nameof(FoodItemForm.Name))" type="text" maxlength="200"
                            value="@Form.Name" @oninput="OnNameInput" />
                     <div class="field-counter @(NameLength >= 200 ? "is-limit" : null)">@NameLength / 200</div>
                     <ValidationMessage For="() => Form.Name" />
                 </div>
                 <div class="form-two">
                     <div class="fm-field">
-                        <label for="item-category">Category</label>
-                        <InputSelect id="item-category" class="fm-input" @bind-Value="Form.Category">
+                        <div class="fm-field-heading">
+                            <label for="item-category">Category</label>
+                            @if (IsAi(nameof(FoodItemForm.Category)))
+                            {
+                                <span class="fm-tag fm-tag-accent">AI</span>
+                            }
+                        </div>
+                        <InputSelect id="item-category" class="@FieldInputClass(nameof(FoodItemForm.Category))"
+                                     @bind-Value="Form.Category" @bind-Value:after="ClearAiCategory">
                             @foreach (var category in Enum.GetValues<FoodCategory>())
                             {
                                 <option value="@category">@category</option>
@@ -52,9 +73,15 @@ else
                         </InputSelect>
                     </div>
                     <div class="fm-field">
-                        <span class="fm-field-label">Size</span>
-                        <InputRadioGroup @bind-Value="Form.SizeUnits">
-                            <div class="fm-seg">
+                        <div class="fm-field-heading">
+                            <span class="fm-field-label">Size</span>
+                            @if (IsAi(nameof(FoodItemForm.SizeUnits)))
+                            {
+                                <span class="fm-tag fm-tag-accent">AI</span>
+                            }
+                        </div>
+                        <InputRadioGroup @bind-Value="Form.SizeUnits" @bind-Value:after="ClearAiSize">
+                            <div class="@SizeSegClass">
                                 <label class="fm-seg-opt"><InputRadio Value="@(1)" />Small · 1</label>
                                 <label class="fm-seg-opt"><InputRadio Value="@(2)" />Medium · 2</label>
                                 <label class="fm-seg-opt"><InputRadio Value="@(3)" />Large · 3</label>
@@ -65,8 +92,15 @@ else
                 </div>
                 <div class="form-two">
                     <div class="fm-field">
-                        <label for="item-expiry">Expiration date</label>
-                        <InputDate id="item-expiry" class="fm-input fig" @bind-Value="Form.ExpirationDate" />
+                        <div class="fm-field-heading">
+                            <label for="item-expiry">Expiration date</label>
+                            @if (IsAi(nameof(FoodItemForm.ExpirationDate)))
+                            {
+                                <span class="fm-tag fm-tag-accent">AI</span>
+                            }
+                        </div>
+                        <InputDate id="item-expiry" class="@ExpiryInputClass"
+                                   @bind-Value="Form.ExpirationDate" @bind-Value:after="ClearAiExpiry" />
                     </div>
                     <div class="fm-field">
                         <span class="fm-field-label">&nbsp;</span>
@@ -111,8 +145,16 @@ else
                     <InputText id="item-position" class="fm-input" @bind-Value="Form.PositionNote" placeholder="e.g. back left, behind the milk" />
                 </div>
                 <div class="fm-field">
-                    <label for="item-note">Note</label>
-                    <InputTextArea id="item-note" class="fm-input" @bind-Value="Form.Note" placeholder="Anything the team should know" />
+                    <div class="fm-field-heading">
+                        <label for="item-note">Note</label>
+                        @if (IsAi(nameof(FoodItemForm.Note)))
+                        {
+                            <span class="fm-tag fm-tag-accent">AI</span>
+                        }
+                    </div>
+                    <InputTextArea id="item-note" class="@FieldInputClass(nameof(FoodItemForm.Note))"
+                                   @bind-Value="Form.Note" @bind-Value:after="ClearAiNote"
+                                   placeholder="Anything the team should know" />
                 </div>
             </div>
             <aside class="form-aside">
@@ -121,7 +163,7 @@ else
                     <div class="form-plate form-plate-picker @(_dragging ? "is-dragging" : null)">
                         @if (PhotoSrc is not null)
                         {
-                            <img src="@PhotoSrc" alt="" />
+                            <img src="@PhotoSrc" alt="" @onerror="OnPhotoError" />
                         }
                         else
                         {
@@ -140,6 +182,24 @@ else
                         <div class="field-error">@_photoError</div>
                     }
                     <div class="text-muted form-photo-hint">JPG, PNG or WebP · 5 MB maximum. Left empty, the category plate is used.</div>
+                    @if (ShowAi)
+                    {
+                        <p class="text-muted form-photo-hint">
+                            AI Autofill sends a processed copy of this photo to Google Gemini for
+                            analysis. Do not use sensitive or confidential images. Always review
+                            AI-generated suggestions before saving.
+                        </p>
+                        <button type="button"
+                                class="fm-btn fm-btn-secondary fm-btn-block"
+                                disabled="@_analyzing"
+                                @onclick="AnalyzeAsync">
+                            @(_analyzing ? "Analyzing photo..." : "Analyze with AI")
+                        </button>
+                        @if (_aiError is not null)
+                        {
+                            <div class="field-error">@_aiError</div>
+                        }
+                    }
                 </div>
                 @if (_allowance is not null)
                 {

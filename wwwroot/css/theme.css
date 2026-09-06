@@ -687,8 +687,29 @@ a {
     display: none;
 }
 
+.fm-field-heading {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.fm-field-heading label,
+.fm-field-heading .fm-field-label {
+    font-size: 12px;
+    color: color-mix(in srgb, var(--color-text) 70%, transparent);
+}
+
+.fm-field-heading .fm-tag {
+    letter-spacing: 0.08em;
+}
+
 .fm-input.is-invalid {
     border-color: var(--color-danger);
+}
+
+.fm-input.is-ai,
+.fm-seg.is-ai {
+    border-color: var(--color-accent-500);
 }
 
 textarea.fm-input {
@@ -1311,6 +1332,18 @@ a.fridge-chip:hover .fridge-chip-name {
 }
 
 .fm-alert-success .fm-alert-kicker {
+    color: var(--color-accent-700);
+}
+
+.fm-alert-info {
+    border: 1px solid var(--color-accent-500);
+    border-radius: var(--radius-md);
+    padding: 14px 16px;
+    margin-bottom: 24px;
+    background: color-mix(in srgb, var(--color-accent-400) 14%, transparent);
+}
+
+.fm-alert-info .fm-alert-kicker {
     color: var(--color-accent-700);
 }
 

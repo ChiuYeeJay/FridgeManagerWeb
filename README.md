@@ -12,8 +12,8 @@ Browser ═══ SignalR / HTTPS ═══▶ FridgeManager (.NET 10, Docker, R
                     ┌──────────────────┼──────────────────┐
                     ▼                  ▼                  ▼
            Render PostgreSQL    Cloudflare R2      Google Gemini
-           app + Identity +     uploaded images    (Phase 7; off
-           Data Protection keys (public URL)       by default)
+           app + Identity +     uploaded images    photo autofill
+           Data Protection keys (public URL)       (processed image only)
 ```
 
 - Runtime: .NET 10, Blazor Web App, global Interactive Server (prerender off)
@@ -22,7 +22,7 @@ Browser ═══ SignalR / HTTPS ═══▶ FridgeManager (.NET 10, Docker, R
 - Images: `IImageStorage` — local files in Development / docker compose, Cloudflare R2 in production
 - UI: `wwwroot/css/theme.css` (`fm-*` primitives)
 
-Spec: `[docs/SPEC.md](docs/SPEC.md)`. Extensions: `[docs/SPEC_EXTENSIONS.md](docs/SPEC_EXTENSIONS.md)`. Design: `[docs/DESIGN.md](docs/DESIGN.md)`. Decisions: `[docs/adr/](docs/adr/)`. Render/R2 setup: `[docs/PHASE6_MANUAL_STEPS.zh-TW.md](docs/PHASE6_MANUAL_STEPS.zh-TW.md)`.
+Spec: `[docs/SPEC.md](docs/SPEC.md)`. Extensions: `[docs/SPEC_EXTENSIONS.md](docs/SPEC_EXTENSIONS.md)`. Design: `[docs/DESIGN.md](docs/DESIGN.md)`. Decisions: `[docs/adr/](docs/adr/)`. Render/R2 setup: `[docs/PHASE6_MANUAL_STEPS.md](docs/PHASE6_MANUAL_STEPS.md)`. Gemini API key and smoke test: `[docs/PHASE7_MANUAL_STEPS.md](docs/PHASE7_MANUAL_STEPS.md)`.
 
 ## Local development
 
@@ -44,7 +44,7 @@ The app listens on [http://localhost:5226](http://localhost:5226) and [https://l
 
 `appsettings.json` sets `ImageStorage:Provider` to `Local`. Uploads are normalized to WebP and stored under `wwwroot/uploads/food-images/{yyyy}/{MM}/{guid}.webp`. `/uploads` is served only to signed-in users.
 
-Gemini stays off until Phase 7 (`Gemini__Enabled=false`). Do not put production secrets in `appsettings*.json`.
+Gemini is off by default. Local `dotnet run` uses `FakeFoodImageAnalyzer` unless you enable it with user-secrets (see [docs/PHASE7_MANUAL_STEPS.md](docs/PHASE7_MANUAL_STEPS.md)). Do not put production secrets in `appsettings*.json`.
 
 ```bash
 dotnet build FridgeManager.slnx
@@ -70,11 +70,11 @@ Then open [http://localhost:8080](http://localhost:8080).
 | `admin@fridge.local`, `alice@`, `bob@`, `carol@fridge.local` | `Passw0rd!` | Bootstrap admin is `admin@fridge.local` (`Seed__Admin*`); the same demo set as Development |
 
 
-`ImageStorage__Provider=Local` and `Gemini__Enabled=false` are set in compose. Do not put real production secrets in this file.
+`ImageStorage__Provider=Local` and `Gemini__Enabled=false` are set in compose (offline demo; Analyze with AI is hidden). Do not put real production secrets in this file.
 
 ## Production deployment (Render)
 
-Blueprint: `[render.yaml](render.yaml)`. Step-by-step (R2 bucket, Blueprint secrets, smoke test): `[docs/PHASE6_MANUAL_STEPS.zh-TW.md](docs/PHASE6_MANUAL_STEPS.zh-TW.md)`.
+Blueprint: `[render.yaml](render.yaml)`. Step-by-step (R2 bucket, Blueprint secrets, smoke test): `[docs/PHASE6_MANUAL_STEPS.md](docs/PHASE6_MANUAL_STEPS.md)`. Gemini key and Render smoke test: `[docs/PHASE7_MANUAL_STEPS.md](docs/PHASE7_MANUAL_STEPS.md)`.
 
 
 | Variable                                                           | Purpose                                                                                 |
@@ -89,8 +89,11 @@ Blueprint: `[render.yaml](render.yaml)`. Step-by-step (R2 bucket, Blueprint secr
 | `R2__SecretAccessKey`                                              | R2 API token secret                                                                     |
 | `R2__BucketName`                                                   | Bucket name                                                                             |
 | `R2__PublicBaseUrl`                                                | Public prefix, e.g. `https://pub-….r2.dev`                                              |
-| `Gemini__Enabled`                                                  | `false` until Phase 7                                                                   |
-| `Gemini__ApiKey` / `Gemini__Model` / …                             | unused while disabled                                                                   |
+| `Gemini__Enabled`                                                  | `true` on Render; `false` in compose / local unless user-secrets override               |
+| `Gemini__ApiKey`                                                   | Google AI Studio key; required when Enabled is true; never sent to the browser          |
+| `Gemini__Model`                                                    | default `gemini-3.5-flash-lite`                                                         |
+| `Gemini__TimeoutSeconds`                                           | default `20`                                                                            |
+| `Gemini__MaxRequestsPerUserPerHour`                                | default `20`                                                                            |
 | `Seed__AdminUserName` / `Seed__AdminEmail` / `Seed__AdminPassword` | first Admin; remove after that account exists                                           |
 | `Seed__DemoData`                                                   | `true` to load the SPEC §9 demo set once                                                |
 
@@ -104,6 +107,14 @@ Free-tier note: free Render web services spin down after about 15 minutes withou
 Uploads are accepted as JPEG, PNG, or WebP (content type **and** magic bytes, max 5 MB). The server orients, strips metadata, caps the long edge at 2000 px, and re-encodes as lossy WebP quality 80. The database stores a provider-neutral key `food-images/{yyyy}/{MM}/{guid}.webp`. Cards and detail resolve that key through `IImageStorage`; anything else (null, legacy `/uploads/{guid}.ext`, unsafe values) falls back to `/images/categories/{category}.webp`. Replacing a photo best-effort deletes the old object.
 
 R2 credentials never reach the browser. Demo images on R2 are publicly readable by URL.
+
+## AI photo autofill
+
+On `/food/new`, after you choose a photo, **Analyze with AI** sends a processed copy (oriented, metadata stripped, long edge capped at 1600 px, re-encoded as WebP) to Google Gemini. The original filename, EXIF, user identity, and database ids are not sent. Suggestions may fill **Name**, **Category**, **Expiration date**, and **Size** only. Review and edit them before saving; submit still goes through the normal quota, shelf-capacity, and authorization checks. The model must not invent an expiration date unless one is visibly printed.
+
+Do not upload sensitive or confidential images. Review [Google Gemini API terms](https://ai.google.dev/gemini-api/terms) before treating this as a production system. Availability and quota of Gemini may temporarily hide or fail autofill; you can always create the item by hand.
+
+Local and `docker compose` leave `Gemini__Enabled=false`, so the button is not shown. Automated tests use `FakeFoodImageAnalyzer` and never call the live API.
 
 ## Migrations and first login
 
@@ -143,10 +154,10 @@ These are accepted. Do not “fix” them in this codebase.
 6. **Size units are an approximation** and do not reflect real volume.
 7. **Disable delay.** After an admin disables a member, an existing circuit may last until security-stamp revalidation (up to 30 minutes). New logins are blocked immediately.
 8. **Identity template remnants.** Passkey, 2FA, and Forgot-password pages from the template may remain. External login does not create accounts.
-9. **Gemini** (Phase 7) is an external dependency; autofill is off until then.
+9. **Gemini** is an external dependency; availability and quota may temporarily disable autofill. Recognition can be wrong and will not invent expiration dates.
 
 
 
 ## Out of scope
 
-Status history, expiry notifications, multiple images per food item, announcement board, placement recommendation, and multi-refrigerator support. AI photo autofill is Phase 7.
+Status history, expiry notifications, multiple images per food item, announcement board, placement recommendation, and multi-refrigerator support.

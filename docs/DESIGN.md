@@ -31,6 +31,8 @@ Components never inject `AppDbContext`. Every service method that talks to EF op
 
 `IImageStorage` is a **Singleton** (`LocalImageStorage` or `R2ImageStorage` from `ImageStorage:Provider`). `InventoryService` depends on the interface, not the filesystem or R2.
 
+`IFoodImageAnalysisService` is **Scoped**. It is the only AI entry point `FoodForm` calls. `IFoodImageAnalyzer` is the provider boundary (`GeminiFoodImageAnalyzer` when `Gemini:Enabled` is true, otherwise `FakeFoodImageAnalyzer`). `AiRateLimiter` is a **Singleton** (`ConcurrentDictionary` of per-user timestamps; not distributed). Authorization and rate limiting live in the analysis service, not in the analyzer.
+
 Authorization is enforced in services (`UserClaims.CanModify`, `UserClaims.IsAdmin`). Pages may hide buttons with the same helpers; hiding UI is not the security boundary.
 
 ## Request flows
@@ -47,6 +49,22 @@ FoodForm.razor
       → insert Active, CreatedAt/UpdatedAt = DateTime.UtcNow
   → OperationResult.Ok → navigate to /food/{id}
   → OperationResult.Fail → danger alert, values kept; DeleteImageAsync if an upload already landed
+```
+
+On `/food/new` only, after a photo is buffered for the local preview:
+
+```text
+FoodForm.razor
+  → disclosure visible + "Analyze with AI"
+  → FoodImageAnalysisService.AnalyzeAsync(buffered bytes, ClaimsPrincipal, CT)
+      → NameIdentifier required
+      → Gemini:Enabled
+      → AiRateLimiter.TryAcquire (counts on call)
+      → ImageNormalizer.Normalize(bytes, 1600 px) → WebP, no metadata
+      → IFoodImageAnalyzer.AnalyzeAsync(processed WebP)
+      → sanitize Name / Category / ExpirationDate / SizeUnits (§8.6)
+  → non-null fields overwrite the form and are marked AI; null fields stay as the user typed them
+  → Save still goes through CreateItemAsync (quota, capacity, authorization)
 ```
 
 ### Admin member
@@ -70,8 +88,8 @@ Expected rule violations never throw. They return `OperationResult` / `Operation
 | `Components/Pages` | Dashboard (`Home.razor`), `FoodList`, `FoodDetail`, `FoodForm`, `AdminUsers` |
 | `Components/Shared` | `FoodCard`, `FoodFilterBar`, `FridgeElevation`, `ErrorFallback`, `PasswordRevealButton` |
 | `Components/Account` | Template Identity pages; static SSR. Markup/styles may change; `[ExcludeFromInteractiveRouting]`, form POST handlers, and Identity services must not move out. |
-| `Services` | `InventoryService`, `CapacityService`, `UserAdminService`, `IImageStorage` / `LocalImageStorage` / `R2ImageStorage`, `ImageNormalizer`, `CapacityQueries`, `ExpiryRules`, `FoodDisplay`, `UserClaims`, `UploadPaths`, `LocalUrls`, `NpgsqlConnectionStrings`, `FoodListState`, `FoodSortPreference` |
-| `Services/Models` | Forms, filters, `FoodSort`, DTOs, `OperationResult` |
+| `Services` | `InventoryService`, `CapacityService`, `UserAdminService`, `IImageStorage` / `LocalImageStorage` / `R2ImageStorage`, `ImageNormalizer`, `IFoodImageAnalysisService` / `FoodImageAnalysisService`, `IFoodImageAnalyzer` / `GeminiFoodImageAnalyzer` / `FakeFoodImageAnalyzer`, `AiRateLimiter`, `GeminiOptions`, `CapacityQueries`, `ExpiryRules`, `FoodDisplay`, `UserClaims`, `UploadPaths`, `LocalUrls`, `NpgsqlConnectionStrings`, `FoodListState`, `FoodSortPreference` |
+| `Services/Models` | Forms, filters, `FoodSort`, DTOs, `OperationResult`, `FoodImageAnalysisResult` |
 | `Data` | `AppDbContext` (`IDataProtectionKeyContext`), `DbSeeder`, `StartupBootstrap`, `SeedOptions`, entities, enums, migrations |
 | `Dockerfile` / `.dockerignore` | Production image; publishes the root `FridgeManager.csproj` only |
 | `docker-compose.yml` | Local production container + Postgres (throw-away `Seed__*` values) |
@@ -143,6 +161,20 @@ Filter state lives in the `/food?...` query string (`FoodFilter.ToQuery` / `From
 
 Logout and Identity `ReturnUrl` values go through `LocalUrls.Sanitize` so only same-origin relative paths are followed.
 
+## AI autofill (SPEC_EXTENSIONS §8)
+
+Available on `/food/new` only. It fills the existing form; it never creates a `FoodItem`.
+
+`FoodForm` reuses the bytes it already buffered for the preview. Selecting a file does not call Gemini. The Analyze button and disclosure render only when `Gemini:Enabled` is true and a photo is pending. Clicking the labelled button after reading the disclosure is consent; there is no extra checkbox.
+
+`GeminiOptions` binds `Gemini__Enabled` (default false), `Gemini__ApiKey`, `Gemini__Model` (`gemini-3.5-flash-lite`), `Gemini__TimeoutSeconds` (20), `Gemini__MaxRequestsPerUserPerHour` (20). When Enabled is true, `ApiKey` is required (`ValidateOnStart`). `GeminiFoodImageAnalyzer` uses a named `HttpClient` (`Timeout = TimeoutSeconds`) against `https://generativelanguage.googleapis.com/v1beta/models/{Model}:generateContent` with header `x-goog-api-key`. No Gemini SDK. The request sends the processed WebP as `inlineData` plus the §8.9 instruction (sizeUnits explained as palm-wrap / one-hand lift / two-hand lift), with `generationConfig.responseMimeType` / `responseSchema` and `thinkingConfig.thinkingLevel = minimal`. HTTP 503 is retried once after 400 ms. Failures return a user-facing message (timeout, temporary unavailability, quota, or the §8.13 sentence) and are logged at warning with HTTP status, `finishReason`, and a short body preview — never the API key or image bytes. A successful parse logs the mapped fields at Information. A cancelled circuit token is rethrown.
+
+`FoodImageAnalysisResult.ApplyTo` overwrites non-null `Name`, `Category`, `ExpirationDate`, `SizeUnits`, and `Note`. Those controls get an `fm-tag` "AI" and `.is-ai` border, cleared when the user edits that control. `warnings` is analysis-only (no food found, unreadable date) and appears once in an `fm-alert-info`; packaging cautions belong in `Note`. Owner, shelf, sharing, status, and position note stay user-controlled. Submit is still `InventoryService.CreateItemAsync`.
+
+Card, detail, and the form preview fall back to the category plate if a stored or preview URL fails to load (`@onerror`). The form preview is a compact 800 px WebP data URL so a long AI render does not keep a multi-megabyte `data:` URL in the circuit.
+
+`docker compose` keeps `Gemini__Enabled=false` (offline demo). Production Blueprint sets Enabled true; `Gemini__ApiKey` is `sync: false`.
+
 ## DTOs
 
 - `FoodItemForm` — DataAnnotations model for create/edit; `FromEntity` / `ApplyTo`.
@@ -150,6 +182,7 @@ Logout and Identity `ReturnUrl` values go through `LocalUrls.Sanitize` so only s
 - `ShelfUsageDto` / `UserUsageDto` — live capacity and allowance panels.
 - `DashboardStats` — assembled in `CapacityService.GetDashboardStatsAsync` (shelves with filtered-include of Active items + active users). Empty shelves and members with zero items still appear. Expiring, expired, shared, and utilisation figures use that same Active set.
 - `AdminUserDto` — admin table row: username, email, quota, active count, status, admin flag. `GetUsersAsync` returns this instead of `ApplicationUser` so password hashes never reach the UI.
+- `FoodImageAnalysisResult` — Gemini / fake analyzer output (`Name`, `Category`, `ExpirationDate`, `SizeUnits`, `Warnings`) plus `ApplyTo` for the create form.
 
 ## Errors
 
@@ -177,7 +210,7 @@ Dashboard shelf remaining is the `FridgeElevation` chip row (chip flex grows wit
 
 `SqliteDbFactory` holds one open `Data Source=:memory:` connection and calls `EnsureCreated` once. Each inventory/capacity test seeds a small fridge (Shelf A at capacity 5, Alice at quota 2) so the guards are demonstrable without the production seeder.
 
-`UserAdminServiceTests` and `StartupBootstrapTests` build a real `UserManager` / `RoleManager` on that factory. Inventory tests inject `FakeImageStorage`. `SaveImageTests` uses `LocalImageStorage` plus a temp `IWebHostEnvironment.WebRootPath` and real tiny JPEG/PNG/WebP bytes from ImageSharp. `ImageNormalizerTests` cover EXIF strip, orientation, 2000 px cap, and no upscale. `UploadPaths` and `NpgsqlConnectionStrings` are tested as pure helpers.
+`UserAdminServiceTests` and `StartupBootstrapTests` build a real `UserManager` / `RoleManager` on that factory. Inventory tests inject `FakeImageStorage`. `SaveImageTests` uses `LocalImageStorage` plus a temp `IWebHostEnvironment.WebRootPath` and real tiny JPEG/PNG/WebP bytes from ImageSharp. `ImageNormalizerTests` cover EXIF strip, orientation, 2000 px cap, an explicit 1600 px AI cap, and no upscale. `UploadPaths` and `NpgsqlConnectionStrings` are tested as pure helpers. AI tests inject `FakeFoodImageAnalyzer` / a recording analyzer / a stub `HttpMessageHandler`; they never call live Gemini. `AiRateLimiterTests` use a test `TimeProvider`. `AiSuggestionsTests` send an AI-filled `FoodItemForm` through `CreateItemAsync` / `UpdateItemAsync` so quota, capacity, and authorization still apply.
 
 The SPEC §11 list is the minimum. Add a test in `tests/FridgeManager.Tests` whenever a service rule or filter changes.
 
@@ -196,17 +229,22 @@ Accepted product decisions now live in the spec and in [adr/](adr/). What remain
 - `R2ImageStorage` sets `DisablePayloadSigning` and `DisableDefaultChecksumValidation` on `PutObjectRequest`, and `RequestChecksumCalculation` / `ResponseChecksumValidation` to `WHEN_REQUIRED` on the client. Cloudflare R2 does not support the Streaming SigV4 checksum scheme AWSSDK.S3 uses by default.
 - Image processing uses **SixLabors.ImageSharp 3.1.12** (Apache-2.0). 4.x requires a Six Labors license key and fails `dotnet publish -c Release` (Docker / CI) without one. The APIs this app needs (`AutoOrient`, metadata strip, `WebpEncoder`) are unchanged.
 - Data Protection keys are stored in PostgreSQL without an XML encryptor (ASP.NET logs a warning). Acceptable for this demo; do not add a certificate solely to silence it.
+- `GeminiOptions` is a `sealed class` with setters (same pattern as `R2Options`) so configuration binding works. SPEC_EXTENSIONS §8.7 says "record".
+- Default Gemini model is `gemini-3.5-flash-lite` (SPEC_EXTENSIONS §8.7 says `gemini-3.6-flash`). Flash Lite is enough for this extraction and stays inside the free-tier quota; 3.6 Flash was returning HTTP 503 and hitting the 20 s timeout.
+- `GeminiFoodImageAnalyzer` sends `generationConfig.thinkingConfig.thinkingLevel = minimal` (Flash Lite’s extraction default). It retries HTTP 503 once. Timeout / 503 / 429 use a slightly more specific sentence than §8.13 so a smoke test can tell them apart.
+- AI may also suggest `Note` (SPEC_EXTENSIONS §8.5 lists only Name / Category / ExpirationDate / SizeUnits). Packaging caution text goes in Note; `warnings` is reserved for analysis problems.
+- `FakeFoodImageAnalyzer` returns a fixed sample (`Greek Yogurt` / `Snack` / no date / size 1) when `Gemini:Enabled` is false. The create form does not render Analyze in that case, so the fake is for tests and for any stray service call.
 
 ## Known limitations (do not “fix”)
 
 Do not “fix”: capacity check race, single Interactive Server instance (no Redis / sticky-session scale-out), no audit trail, approximate size units, disable delay up to 30 minutes, Identity template remnants.
 
-SPEC_EXTENSIONS §0.1 overrides the former local-only uploads, orphan files on replacement, missing-file 404, `/uploads/{guid}.ext` path shape, and local-demo-only items. Those are implemented: Development and docker compose use `LocalImageStorage`; production uses R2. Gemini remains Phase 7.
+SPEC_EXTENSIONS §0.1 overrides the former local-only uploads, orphan files on replacement, missing-file 404, `/uploads/{guid}.ext` path shape, local-demo-only items, and “no AI”. Those are implemented: Development and docker compose use `LocalImageStorage`; production uses R2; `/food/new` can autofill from Gemini when enabled.
 
 Also accepted for the extension (SPEC_EXTENSIONS §9):
 
 - One application instance; horizontal scaling is not implemented.
 - Free Render web services spin down after inactivity and cold-start slowly; free Render PostgreSQL expires after 30 days.
 - R2 demo images are publicly readable by URL.
-- Gemini is an external dependency; availability and quota may disable autofill (Phase 7).
-- AI recognition may be inaccurate and cannot invent expiration dates (Phase 7).
+- Gemini is an external dependency; availability and quota may temporarily disable autofill.
+- AI recognition may be inaccurate and cannot invent expiration dates unless a date is visibly printed.

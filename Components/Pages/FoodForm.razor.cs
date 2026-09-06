@@ -4,11 +4,12 @@ using FridgeManager.Services.Models;
 using Microsoft.AspNetCore.Components;
 using Microsoft.AspNetCore.Components.Authorization;
 using Microsoft.AspNetCore.Components.Forms;
+using Microsoft.Extensions.Options;
 using System.Security.Claims;
 
 namespace FridgeManager.Components.Pages;
 
-public partial class FoodForm
+public partial class FoodForm : IDisposable
 {
     [Parameter]
     public int Id { get; set; }
@@ -18,6 +19,12 @@ public partial class FoodForm
 
     [Inject]
     private ICapacityService Capacity { get; set; } = default!;
+
+    [Inject]
+    private IFoodImageAnalysisService Analysis { get; set; } = default!;
+
+    [Inject]
+    private IOptions<GeminiOptions> Gemini { get; set; } = default!;
 
     [Inject]
     private NavigationManager Navigation { get; set; } = default!;
@@ -32,27 +39,37 @@ public partial class FoodForm
     private Task<AuthenticationState> AuthState { get; set; } = default!;
 
     private readonly FoodItemForm Form = new();
+    private readonly HashSet<string> _aiFields = new(StringComparer.Ordinal);
     private EditForm? _editForm;
     private IReadOnlyList<ShelfUsageDto> _shelves = [];
+    private IReadOnlyList<string> _aiWarnings = [];
     private UserUsageDto? _allowance;
     private ClaimsPrincipal _user = new();
     private bool _loading = true;
     private bool _saving;
+    private bool _analyzing;
     private bool _originalActive;
     private int _originalShelfId;
     private int _originalSize;
     private string? _error;
     private string? _blocked;
+    private string? _aiError;
     private IBrowserFile? _pendingFile;
+    private byte[]? _pendingBytes;
+    private string? _pendingContentType;
     private string? _previewUrl;
+    private bool _previewFailed;
     private string? _photoError;
     private bool _dragging;
     private int _dragDepth;
+    private CancellationTokenSource? _analyzeCts;
 
     private bool IsEdit => Id > 0;
 
     private string? PhotoSrc
-        => _previewUrl ?? ImageStorage.GetPublicUrl(Form.ImagePath);
+        => _previewFailed
+            ? FoodDisplay.CategoryImage(Form.Category)
+            : _previewUrl ?? ImageStorage.GetPublicUrl(Form.ImagePath);
 
     private string CancelHref => IsEdit ? $"food/{Id}" : ListState.LastListUrl;
 
@@ -64,6 +81,13 @@ public partial class FoodForm
     private bool Insufficient => SelectedShelf is not null && LiveRemaining < Form.SizeUnits;
 
     private string ShelfInputClass => Insufficient ? "fm-input is-invalid" : "fm-input";
+
+    private string SizeSegClass => IsAi(nameof(FoodItemForm.SizeUnits)) ? "fm-seg is-ai" : "fm-seg";
+
+    private string ExpiryInputClass
+        => IsAi(nameof(FoodItemForm.ExpirationDate)) ? "fm-input fig is-ai" : "fm-input fig";
+
+    private bool ShowAi => !IsEdit && Gemini.Value.Enabled && _pendingBytes is not null;
 
     private int UsedPercent
     {
@@ -193,18 +217,28 @@ public partial class FoodForm
     private void OnNameInput(ChangeEventArgs e)
     {
         Form.Name = e.Value?.ToString() ?? "";
+        ClearAi(nameof(FoodItemForm.Name));
         var context = _editForm?.EditContext;
         context?.NotifyFieldChanged(new FieldIdentifier(Form, nameof(FoodItemForm.Name)));
     }
 
     private void SetExpiryDays(int days)
-        => Form.ExpirationDate = DateOnly.FromDateTime(DateTime.UtcNow).AddDays(days);
+    {
+        Form.ExpirationDate = DateOnly.FromDateTime(DateTime.UtcNow).AddDays(days);
+        ClearAi(nameof(FoodItemForm.ExpirationDate));
+    }
 
     private void SetExpiryMonths(int months)
-        => Form.ExpirationDate = DateOnly.FromDateTime(DateTime.UtcNow).AddMonths(months);
+    {
+        Form.ExpirationDate = DateOnly.FromDateTime(DateTime.UtcNow).AddMonths(months);
+        ClearAi(nameof(FoodItemForm.ExpirationDate));
+    }
 
     private void SetExpiryYears(int years)
-        => Form.ExpirationDate = DateOnly.FromDateTime(DateTime.UtcNow).AddYears(years);
+    {
+        Form.ExpirationDate = DateOnly.FromDateTime(DateTime.UtcNow).AddYears(years);
+        ClearAi(nameof(FoodItemForm.ExpirationDate));
+    }
 
     private void OnPhotoDragEnter()
     {
@@ -225,13 +259,17 @@ public partial class FoodForm
     {
         var file = e.File;
         _photoError = null;
+        _previewFailed = false;
         _dragging = false;
         _dragDepth = 0;
+        ClearAiState();
 
         if (!IsAllowedImageType(file.ContentType))
         {
             _photoError = "Use a JPG, PNG or WebP image.";
             _pendingFile = null;
+            _pendingBytes = null;
+            _pendingContentType = null;
             _previewUrl = null;
             return;
         }
@@ -242,15 +280,122 @@ public partial class FoodForm
             using var buffer = new MemoryStream();
             await stream.CopyToAsync(buffer);
             var bytes = buffer.ToArray();
+            _pendingBytes = bytes;
+            _pendingContentType = file.ContentType;
             _pendingFile = new BufferedBrowserFile(file.Name, file.ContentType, bytes, file.LastModified);
-            _previewUrl = $"data:{file.ContentType};base64,{Convert.ToBase64String(bytes)}";
+            _previewUrl = CompactPreviewUrl(bytes, file.ContentType);
         }
         catch (IOException)
         {
             _photoError = "That file is larger than 5 MB.";
             _pendingFile = null;
+            _pendingBytes = null;
+            _pendingContentType = null;
             _previewUrl = null;
         }
+    }
+
+    private bool IsAi(string field) => _aiFields.Contains(field);
+
+    private string FieldInputClass(string field)
+        => IsAi(field) ? "fm-input is-ai" : "fm-input";
+
+    private void ClearAi(string field) => _aiFields.Remove(field);
+
+    private void ClearAiCategory() => ClearAi(nameof(FoodItemForm.Category));
+
+    private void ClearAiSize() => ClearAi(nameof(FoodItemForm.SizeUnits));
+
+    private void ClearAiExpiry() => ClearAi(nameof(FoodItemForm.ExpirationDate));
+
+    private void ClearAiNote() => ClearAi(nameof(FoodItemForm.Note));
+
+    private void OnPhotoError()
+    {
+        if (_previewUrl is not null || !string.IsNullOrEmpty(Form.ImagePath))
+        {
+            _previewFailed = true;
+        }
+    }
+
+    private static string CompactPreviewUrl(byte[] bytes, string contentType)
+    {
+        var preview = ImageNormalizer.Normalize(bytes, maxLongEdge: 800);
+        if (preview is not null)
+        {
+            return $"data:{preview.ContentType};base64,{Convert.ToBase64String(preview.Bytes)}";
+        }
+
+        return $"data:{contentType};base64,{Convert.ToBase64String(bytes)}";
+    }
+
+    private void ClearAiState()
+    {
+        _aiFields.Clear();
+        _aiWarnings = [];
+        _aiError = null;
+    }
+
+    private async Task AnalyzeAsync()
+    {
+        if (_analyzing || _pendingBytes is null || _pendingContentType is null)
+        {
+            return;
+        }
+
+        _analyzing = true;
+        _aiError = null;
+        try
+        {
+            _analyzeCts?.Dispose();
+            _analyzeCts = new CancellationTokenSource();
+            var result = await Analysis.AnalyzeAsync(
+                _pendingBytes,
+                _pendingContentType,
+                _user,
+                _analyzeCts.Token);
+            if (!result.Success || result.Value is null)
+            {
+                _aiError = result.Error;
+                return;
+            }
+
+            _aiFields.Clear();
+            foreach (var field in result.Value.ApplyTo(Form))
+            {
+                _aiFields.Add(field);
+            }
+
+            _aiWarnings = result.Value.Warnings;
+            NotifyAppliedFields();
+        }
+        catch (OperationCanceledException)
+        {
+        }
+        finally
+        {
+            _analyzing = false;
+        }
+    }
+
+    private void NotifyAppliedFields()
+    {
+        var context = _editForm?.EditContext;
+        if (context is null)
+        {
+            return;
+        }
+
+        foreach (var field in _aiFields)
+        {
+            context.NotifyFieldChanged(new FieldIdentifier(Form, field));
+        }
+    }
+
+    public void Dispose()
+    {
+        _analyzeCts?.Cancel();
+        _analyzeCts?.Dispose();
     }
 
     private static bool IsAllowedImageType(string? contentType)

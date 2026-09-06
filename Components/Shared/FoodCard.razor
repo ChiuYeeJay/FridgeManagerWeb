@@ -3,7 +3,7 @@
 <div class="food-card @(Expired ? "food-card-expired" : null)">
     <a class="food-card-link" href="@($"food/{Item.Id}")">
         <div class="food-card-plate">
-            <img src="@FoodDisplay.ImageUrl(Item, ImageStorage)" alt="" />
+            <img src="@PlateSrc" alt="" @onerror="OnPlateError" />
             <span class="owner-chip @(_own ? "owner-chip-you" : null)">
                 <span class="owner-chip-initial">@FoodDisplay.OwnerInitial(Item.Owner)</span>
                 @(_own ? "You" : FoodDisplay.OwnerLabel(Item.Owner))
@@ -54,6 +54,14 @@
 
     private ExpiryState _state;
     private bool _own;
+    private bool _plateFailed;
+    private int _plateItemId;
+    private string? _platePath;
+
+    private string PlateSrc
+        => _plateFailed
+            ? FoodDisplay.CategoryImage(Item.Category)
+            : FoodDisplay.ImageUrl(Item, ImageStorage);
 
     private bool Expired => _state == ExpiryState.Expired;
 
@@ -66,7 +74,16 @@
 
     protected override void OnParametersSet()
     {
+        if (_plateItemId != Item.Id || !string.Equals(_platePath, Item.ImagePath, StringComparison.Ordinal))
+        {
+            _plateItemId = Item.Id;
+            _platePath = Item.ImagePath;
+            _plateFailed = false;
+        }
+
         _state = ExpiryRules.Of(Item.ExpirationDate, Today);
         _own = FoodDisplay.IsOwn(Item, CurrentUserId);
     }
+
+    private void OnPlateError() => _plateFailed = true;
 }

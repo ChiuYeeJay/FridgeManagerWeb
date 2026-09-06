@@ -25,7 +25,7 @@ else
     <div class="detail-grid" style="margin-top:14px">
         <div>
             <button type="button" class="detail-plate detail-plate-zoom" aria-label="View full image" @onclick="OpenLightbox">
-                <img src="@FoodDisplay.ImageUrl(_item, ImageStorage)" alt="" />
+                <img src="@PlateSrc" alt="" @onerror="OnPlateError" />
             </button>
             <div class="text-muted" style="font-size:11px;margin-top:6px">
                 @(ImageStorage.GetPublicUrl(_item.ImagePath) is null ? "Category plate" : "Uploaded photo")
@@ -82,7 +82,7 @@ else
     {
         <div class="fm-lightbox" tabindex="-1" @ref="_lightbox" @onclick="CloseLightbox" @onkeydown="OnLightboxKey">
             <button type="button" class="fm-btn fm-btn-ghost fm-lightbox-close" @onclick="CloseLightbox" @onclick:stopPropagation="true">Close</button>
-            <img src="@FoodDisplay.ImageUrl(_item, ImageStorage)" alt="@_item.Name" @onclick:stopPropagation="true" />
+            <img src="@PlateSrc" alt="@_item.Name" @onclick:stopPropagation="true" @onerror="OnPlateError" />
         </div>
     }
 }
@@ -119,7 +119,15 @@ else
     private bool _own;
     private bool _lightboxOpen;
     private bool _focusLightbox;
+    private bool _plateFailed;
     private ElementReference _lightbox;
+
+    private string PlateSrc
+        => _item is null
+            ? ""
+            : _plateFailed
+                ? FoodDisplay.CategoryImage(_item.Category)
+                : FoodDisplay.ImageUrl(_item, ImageStorage);
 
     private string ListHref => ListState.LastListUrl;
 
@@ -144,6 +152,7 @@ else
     private async Task LoadAsync()
     {
         _error = null;
+        _plateFailed = false;
         _user = (await AuthState).User;
         _item = await Inventory.GetItemAsync(Id);
         _notFound = _item is null;
@@ -157,6 +166,8 @@ else
         _own = FoodDisplay.IsOwn(_item, UserClaims.GetUserId(_user));
         _shelfRemaining = await Capacity.GetShelfRemainingAsync(_item.ShelfId);
     }
+
+    private void OnPlateError() => _plateFailed = true;
 
     private void OpenLightbox()
     {

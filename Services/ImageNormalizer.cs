@@ -9,12 +9,17 @@ public sealed record NormalizedImage(byte[] Bytes, string ContentType);
 public static class ImageNormalizer
 {
     public const int MaxLongEdge = 2000;
+    public const int AiMaxLongEdge = 1600;
     public const int WebpQuality = 80;
     public const string WebpContentType = "image/webp";
 
-    public static NormalizedImage? Normalize(byte[] bytes)
+    public static NormalizedImage? Normalize(byte[] bytes, int maxLongEdge = MaxLongEdge)
     {
         ArgumentNullException.ThrowIfNull(bytes);
+        if (maxLongEdge < 1)
+        {
+            maxLongEdge = MaxLongEdge;
+        }
 
         try
         {
@@ -27,9 +32,9 @@ public static class ImageNormalizer
             image.Metadata.IccProfile = null;
 
             var longEdge = Math.Max(image.Width, image.Height);
-            if (longEdge > MaxLongEdge)
+            if (longEdge > maxLongEdge)
             {
-                var scale = MaxLongEdge / (double)longEdge;
+                var scale = maxLongEdge / (double)longEdge;
                 var width = Math.Max(1, (int)Math.Round(image.Width * scale));
                 var height = Math.Max(1, (int)Math.Round(image.Height * scale));
                 image.Mutate(x => x.Resize(width, height));

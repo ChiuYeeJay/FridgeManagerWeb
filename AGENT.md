@@ -23,7 +23,7 @@ placement, per-user item quotas and per-shelf capacity.
 | Auth | ASP.NET Core Identity with roles (`Admin`, `User`) |
 | Tests | xUnit, EF Core SQLite `:memory:` (`tests/FridgeManager.Tests`) |
 | Styling | `wwwroot/css/theme.css` (`fm-*` primitives); Bootstrap only for residual template widgets |
-| Deployment | Docker (non-root `app` user, port 8080) → Render Web Service + Render PostgreSQL; Cloudflare R2 via `IImageStorage`; Gemini REST (Phase 7, no SDK) |
+| Deployment | Docker (non-root `app` user, port 8080) → Render Web Service + Render PostgreSQL; Cloudflare R2 via `IImageStorage`; Gemini REST (no SDK) |
 
 ## Build, run, test
 
@@ -126,8 +126,8 @@ Architecture rules:
 | `Components/Pages` | `Home.razor` (dashboard), `FoodList`, `FoodDetail`, `FoodForm` (+ `.razor.cs`), `AdminUsers` |
 | `Components/Shared` | `FoodCard`, `FoodFilterBar`, `FridgeElevation`, `ErrorFallback`, `PasswordRevealButton` |
 | `Components/Account` | Template Identity pages — see convention 2; do not change in the extension |
-| `Services` | `InventoryService`, `CapacityService`, `UserAdminService`, `IImageStorage`, `LocalImageStorage`, `R2ImageStorage`, `ImageNormalizer`, `CapacityQueries`, `ExpiryRules`, `FoodDisplay`, `UserClaims`, `UploadPaths`, `LocalUrls`, `NpgsqlConnectionStrings`, `FoodListState`, `FoodSortPreference` |
-| `Services/Models` | `FoodItemForm`, `FoodFilter`, `FoodSort`, `OperationResult`, `DashboardStats`, `*Dto` |
+| `Services` | `InventoryService`, `CapacityService`, `UserAdminService`, `IImageStorage`, `LocalImageStorage`, `R2ImageStorage`, `ImageNormalizer`, `IFoodImageAnalysisService`, `FoodImageAnalysisService`, `IFoodImageAnalyzer`, `GeminiFoodImageAnalyzer`, `FakeFoodImageAnalyzer`, `AiRateLimiter`, `GeminiOptions`, `CapacityQueries`, `ExpiryRules`, `FoodDisplay`, `UserClaims`, `UploadPaths`, `LocalUrls`, `NpgsqlConnectionStrings`, `FoodListState`, `FoodSortPreference` |
+| `Services/Models` | `FoodItemForm`, `FoodFilter`, `FoodSort`, `OperationResult`, `DashboardStats`, `FoodImageAnalysisResult`, `*Dto` |
 | `Data` | `AppDbContext` (`IDataProtectionKeyContext`), `DbSeeder`, `StartupBootstrap`, `SeedOptions`, `Entities/`, `Enums/`, `Migrations/` |
 | `wwwroot/css/theme.css` | Design tokens and `fm-*` classes from the mockup |
 | `wwwroot/images/categories` | Default plate per category (`{category}.webp`) |
@@ -151,12 +151,11 @@ Architecture rules:
 
 ## Project status and scope
 
-SPEC §10 Phases 1–4 are done. SPEC_EXTENSIONS Phases 5–6 are done. Continue with Phase 7 (AI photo autofill). Phase 10 starts only when explicitly requested.
+SPEC §10 Phases 1–4 are done. SPEC_EXTENSIONS Phases 5–7 are done. Continue with Phase 8 (responsive UI). Phase 10 starts only when explicitly requested.
 
 Out of scope (SPEC_EXTENSIONS §0.1): status history, expiry notifications,
 multiple images per food item, announcement board, placement recommendation,
-multi-refrigerator support. AI photo autofill is in scope for Phase 7, not
-before.
+multi-refrigerator support.
 
 SPEC_EXTENSIONS §0.1 overrides these former SPEC §13 limitations: local-only
 uploads, orphan files on replacement, missing-file 404, `/uploads/{guid}.ext`

@@ -66,6 +66,7 @@ builder.Services.Configure<ForwardedHeadersOptions>(o =>
 builder.Services.AddHealthChecks();
 builder.Services.Configure<SeedOptions>(builder.Configuration.GetSection(SeedOptions.SectionName));
 AddImageStorage(builder);
+AddGemini(builder);
 
 builder.Services.AddSingleton<IEmailSender<ApplicationUser>, IdentityNoOpEmailSender>();
 builder.Services.AddScoped<IInventoryService, InventoryService>();
@@ -181,6 +182,36 @@ static void AddImageStorage(WebApplicationBuilder builder)
         default:
             throw new InvalidOperationException(
                 $"ImageStorage:Provider '{provider}' is not supported. Use Local or R2.");
+    }
+}
+
+static void AddGemini(WebApplicationBuilder builder)
+{
+    builder.Services.AddOptions<GeminiOptions>()
+        .Bind(builder.Configuration.GetSection(GeminiOptions.SectionName))
+        .Validate(
+            o => !o.Enabled || !string.IsNullOrWhiteSpace(o.ApiKey),
+            "Gemini:ApiKey is required when Gemini:Enabled is true.")
+        .ValidateOnStart();
+
+    builder.Services.AddSingleton<AiRateLimiter>();
+    builder.Services.AddScoped<IFoodImageAnalysisService, FoodImageAnalysisService>();
+
+    var gemini = builder.Configuration.GetSection(GeminiOptions.SectionName).Get<GeminiOptions>()
+        ?? new GeminiOptions();
+    if (gemini.Enabled)
+    {
+        var timeoutSeconds = gemini.TimeoutSeconds > 0 ? gemini.TimeoutSeconds : 20;
+        builder.Services.AddHttpClient(GeminiOptions.HttpClientName, client =>
+        {
+            client.BaseAddress = new Uri("https://generativelanguage.googleapis.com/");
+            client.Timeout = TimeSpan.FromSeconds(timeoutSeconds);
+        });
+        builder.Services.AddScoped<IFoodImageAnalyzer, GeminiFoodImageAnalyzer>();
+    }
+    else
+    {
+        builder.Services.AddSingleton<IFoodImageAnalyzer, FakeFoodImageAnalyzer>();
     }
 }
 
