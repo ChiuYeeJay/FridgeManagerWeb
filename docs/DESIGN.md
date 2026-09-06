@@ -134,7 +134,7 @@ All predicates are applied on `IQueryable` before `ToListAsync()`. Date threshol
 |---|---|
 | Search | `Name.ToLower().Contains(term)` after trim (not `ILike`) |
 | Mine | `OwnerId == FoodFilter.CurrentUserId` (All / My items tab on `/food`; page fills this from auth state). Choosing My items clears `OwnerId`. |
-| Owner | `OwnerId == FoodFilter.OwnerId` (`owner=` in the URL). The Owner select sits after Shelf and before Status. Choosing an owner sets `MineOnly` false. |
+| Owner | `OwnerId == FoodFilter.OwnerId` (`owner=` in the URL). The Owner select sits after Shelf and before Status and includes disabled members labelled `(disabled)`. Choosing an owner sets `MineOnly` false. |
 | Shared | `IsShared` |
 | Category / Shelf / Status | equality; Status defaults to `Active` |
 | Expiry | `Expired` → `< today`; `ExpiringSoon` → `today..today+3`; `Normal` → `> today+3`; omit for any. `today` is `FoodFilter.Today` (viewer zone), else UTC. |
@@ -177,7 +177,7 @@ Available on `/food/new` only. It fills the existing form; it never creates a `F
 
 `FoodForm` reuses the bytes it already buffered for the preview. Selecting a file does not call Gemini. The Analyze button and disclosure render only when `Gemini:Enabled` is true and a photo is pending. Clicking the labelled button after reading the disclosure is consent; there is no extra checkbox. Analyze and Save share one in-flight gate, flush a render before ImageSharp / Gemini, and ignore a second click already queued on the circuit.
 
-`GeminiOptions` binds `Gemini__Enabled` (default false), `Gemini__ApiKey`, `Gemini__Model` (`gemini-3.5-flash-lite`), `Gemini__TimeoutSeconds` (45; SPEC_EXTENSIONS §8.7 says 20 — first generateContent after idle is often 6–16 s), `Gemini__MaxRequestsPerUserPerHour` (20). When Enabled is true, `ApiKey` is required (`ValidateOnStart`). `GeminiFoodImageAnalyzer` uses a named `HttpClient` (`Timeout = TimeoutSeconds`) against `https://generativelanguage.googleapis.com/v1beta/models/{Model}:generateContent` with header `x-goog-api-key`. No Gemini SDK. Opening `/food/new` fires a tiny text-only generateContent warmup so the user's later photo request is less likely to pay that cold-start wait. The request sends the processed WebP as `inlineData` plus the §8.9 instruction (sizeUnits explained as palm-wrap / one-hand lift / two-hand lift), with `generationConfig.responseMimeType` / `responseSchema` and `thinkingConfig.thinkingLevel = minimal`. HTTP 503 is retried once after 400 ms. Failures return a user-facing message (timeout, temporary unavailability, quota, or the §8.13 sentence) and are logged at warning with HTTP status, `finishReason`, and a short body preview — never the API key or image bytes. A successful parse logs the mapped fields at Information. A cancelled circuit token is rethrown.
+`GeminiOptions` binds `Gemini__Enabled` (default false), `Gemini__ApiKey`, `Gemini__Model` (`gemini-3.5-flash-lite`), `Gemini__TimeoutSeconds` (45), `Gemini__MaxRequestsPerUserPerHour` (20). When Enabled is true, `ApiKey` is required (`ValidateOnStart`). See [ADR-007](adr/007-gemini-extraction-profile.md). `GeminiFoodImageAnalyzer` uses a named `HttpClient` (`Timeout = TimeoutSeconds`) against `https://generativelanguage.googleapis.com/v1beta/models/{Model}:generateContent` with header `x-goog-api-key`. No Gemini SDK. Opening `/food/new` fires a tiny text-only generateContent warmup (not rate-limited) so the user's later photo request is less likely to pay that cold-start wait. The request sends the processed WebP as `inlineData` plus the §8.9 instruction (sizeUnits explained as palm-wrap / one-hand lift / two-hand lift), with `generationConfig.responseMimeType` / `responseSchema` and `thinkingConfig.thinkingLevel = minimal`. HTTP 503 is retried once after 400 ms. Failures return a user-facing message (timeout, temporary unavailability, quota, or the §8.13 sentence) and are logged at warning with HTTP status, `finishReason`, and a short body preview — never the API key or image bytes. A successful parse logs the mapped fields at Information. A cancelled circuit token is rethrown.
 
 `FoodImageAnalysisResult.ApplyTo` fills non-null `Name`, `Category`, `ExpirationDate`, `SizeUnits`, and `Note` only when `FoodForm` has not marked that control as user-entered. Touched fields are passed in and left alone (no AI marker). Untouched create-form defaults can still be filled. Those applied controls get an `fm-tag` "AI" and `.is-ai` border, cleared when the user edits that control. `warnings` is analysis-only (no food found, unreadable date) and appears once in an `fm-alert-info`; packaging cautions belong in `Note`. Owner, shelf, sharing, status, and position note stay user-controlled. Submit is still `InventoryService.CreateItemAsync`.
 
@@ -192,7 +192,7 @@ Card, detail, and the form preview fall back to the category plate if a stored o
 - `ShelfUsageDto` / `UserUsageDto` — live capacity and allowance panels.
 - `DashboardStats` — assembled in `CapacityService.GetDashboardStatsAsync` (shelves with filtered-include of Active items + active users). Empty shelves and members with zero items still appear. Expiring, expired, shared, and utilisation figures use that same Active set.
 - `AdminUserDto` — admin table row: username, email, quota, active count, status, admin flag. `GetUsersAsync` returns this instead of `ApplicationUser` so password hashes never reach the UI.
-- `FoodImageAnalysisResult` — Gemini / fake analyzer output (`Name`, `Category`, `ExpirationDate`, `SizeUnits`, `Warnings`) plus `ApplyTo` for the create form (skips user-entered fields).
+- `FoodImageAnalysisResult` — Gemini / fake analyzer output (`Name`, `Category`, `ExpirationDate`, `SizeUnits`, `Note`, `Warnings`) plus `ApplyTo` for the create form (skips user-entered fields).
 
 ## Errors
 
@@ -241,9 +241,9 @@ GitHub Actions ([`.github/workflows/ci.yml`](../.github/workflows/ci.yml)) runs 
 
 ## Deviations from the spec
 
-Accepted product decisions now live in the spec and in [adr/](adr/). What remains:
+Accepted product decisions now live in the spec and in [adr/](adr/). Gemini model, timeout, Note, warmup, and grab-test size copy are [ADR-007](adr/007-gemini-extraction-profile.md). What remains is infrastructure how-to, not a product-rule change:
 
-- List Discard eligibility (`Active` ∧ expired ∧ `CanModify`) is computed in `FoodList`, not in a service. `ChangeStatusAsync` still enforces owner/admin; the expired-only restriction is card UX.
+- List Discard eligibility (`Active` ∧ expired ∧ `CanModify`) is computed in `FoodList`, not in a service. `ChangeStatusAsync` still enforces owner/admin; the expired-only restriction is card UX (SPEC §8.2).
 - Identity template remnants stay reachable: passkey on Login, 2FA pages, Forgot password. External login signs in an already-linked account and never creates one.
 - Password reveal uses `wwwroot/js/password-toggle.js` on static Account pages and component state on AdminUsers.
 - `docker-compose.yml` mounts Postgres 18 data at `/var/lib/postgresql` (not `/var/lib/postgresql/data`). The official `postgres:18` image stores versioned cluster data under that parent directory.
@@ -254,11 +254,13 @@ Accepted product decisions now live in the spec and in [adr/](adr/). What remain
 - `R2ImageStorage` sets `DisablePayloadSigning` and `DisableDefaultChecksumValidation` on `PutObjectRequest`, and `RequestChecksumCalculation` / `ResponseChecksumValidation` to `WHEN_REQUIRED` on the client. Cloudflare R2 does not support the Streaming SigV4 checksum scheme AWSSDK.S3 uses by default.
 - Image processing uses **SixLabors.ImageSharp 3.1.12** (Apache-2.0). 4.x requires a Six Labors license key and fails `dotnet publish -c Release` (Docker / CI) without one. The APIs this app needs (`AutoOrient`, metadata strip, `WebpEncoder`) are unchanged.
 - Data Protection keys are stored in PostgreSQL without an XML encryptor (ASP.NET logs a warning). Acceptable for this demo; do not add a certificate solely to silence it.
-- `GeminiOptions` is a `sealed class` with setters (same pattern as `R2Options`) so configuration binding works. SPEC_EXTENSIONS §8.7 says "record".
-- Default Gemini model is `gemini-3.5-flash-lite` (SPEC_EXTENSIONS §8.7 says `gemini-3.6-flash`). Flash Lite is enough for this extraction and stays inside the free-tier quota; 3.6 Flash was returning HTTP 503 and hitting the 20 s timeout.
-- `GeminiFoodImageAnalyzer` sends `generationConfig.thinkingConfig.thinkingLevel = minimal` (Flash Lite’s extraction default). It retries HTTP 503 once. Timeout / 503 / 429 use a slightly more specific sentence than §8.13 so a smoke test can tell them apart.
-- AI may also suggest `Note` (SPEC_EXTENSIONS §8.5 lists only Name / Category / ExpirationDate / SizeUnits). Packaging caution text goes in Note; `warnings` is reserved for analysis problems.
+- `DbSeeder.SeedDemoDataAsync` may delete leftover `admin@example.com` when that account owns no food items, and may shorten email-shaped usernames to the local-part. That is seed hygiene (SPEC §6.5). It is not a product delete path.
 - `FakeFoodImageAnalyzer` returns a fixed sample (`Greek Yogurt` / `Snack` / no date / size 1) when `Gemini:Enabled` is false. The create form does not render Analyze in that case, so the fake is for tests and for any stray service call.
+
+### Open follow-ups (not accepted; do not write into the spec)
+
+- `DbSeeder.EnsureUserAsync` still appends a debug line to `.cursor/debug-0cb97a.log`. Remove that instrumentation; it is not product behaviour.
+- `AdminUsers.razor` lede currently says disabling a member “hides them from owner lists”. The Owner select does not; fix the copy.
 
 ## Known limitations (do not “fix”)
 

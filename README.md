@@ -105,7 +105,7 @@ Blueprint: `[render.yaml](render.yaml)`. Step-by-step (R2 bucket, Blueprint secr
 | `Gemini__Enabled`                                                  | `true` on Render; `false` in compose / local unless user-secrets override               |
 | `Gemini__ApiKey`                                                   | Google AI Studio key; required when Enabled is true; never sent to the browser          |
 | `Gemini__Model`                                                    | default `gemini-3.5-flash-lite`                                                         |
-| `Gemini__TimeoutSeconds`                                           | default `20`                                                                            |
+| `Gemini__TimeoutSeconds`                                           | default `45`                                                                            |
 | `Gemini__MaxRequestsPerUserPerHour`                                | default `20`                                                                            |
 | `Seed__AdminUserName` / `Seed__AdminEmail` / `Seed__AdminPassword` | first Admin; remove after that account exists                                           |
 | `Seed__DemoData`                                                   | `true` to load the SPEC §9 demo set once                                                |
@@ -123,7 +123,7 @@ R2 credentials never reach the browser. Demo images on R2 are publicly readable 
 
 ## AI photo autofill
 
-On `/food/new`, after you choose a photo, **Analyze with AI** sends a processed copy (oriented, metadata stripped, long edge capped at 1600 px, re-encoded as WebP) to Google Gemini. The original filename, EXIF, user identity, and database ids are not sent. Suggestions may fill **Name**, **Category**, **Expiration date**, and **Size** only — fields you have already typed or selected are left alone. Review and edit them before saving; submit still goes through the normal quota, shelf-capacity, and authorization checks. The model must not invent an expiration date unless one is visibly printed.
+On `/food/new`, after you choose a photo, **Analyze with AI** sends a processed copy (oriented, metadata stripped, long edge capped at 1600 px, re-encoded as WebP) to Google Gemini. The original filename, EXIF, user identity, and database ids are not sent. Suggestions may fill **Name**, **Category**, **Expiration date**, **Size**, and **Note** — fields you have already typed or selected are left alone. Review and edit them before saving; submit still goes through the normal quota, shelf-capacity, and authorization checks. The model must not invent an expiration date unless one is visibly printed. Packaging cautions belong in Note; analysis problems (no food found, unreadable date) appear as warnings.
 
 Do not upload sensitive or confidential images. Review [Google Gemini API terms](https://ai.google.dev/gemini-api/terms) before treating this as a production system. Availability and quota of Gemini may temporarily hide or fail autofill; you can always create the item by hand.
 

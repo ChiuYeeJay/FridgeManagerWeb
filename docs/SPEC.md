@@ -177,62 +177,13 @@ Rules:
 
 ### 4.1 Folder Layout
 
-```text
-/Components
-  App.razor
-  Routes.razor
-  /Account            (template Identity; static SSR. Markup and styles may change.
-                       Do not remove [ExcludeFromInteractiveRouting], do not add
-                       @rendermode, and do not move POST handlers or Identity
-                       registration out. Shared URL/path helpers may live in /Services.)
-  /Layout
-  /Pages
-    Dashboard.razor   (implemented as Home.razor)
-    FoodList.razor
-    FoodDetail.razor
-    FoodForm.razor
-    AdminUsers.razor
-  /Shared
-    FoodCard.razor
-    FoodFilterBar.razor
-    FridgeElevation.razor
-    ErrorFallback.razor
-/Data
-  AppDbContext.cs
-  DbSeeder.cs
-  /Entities
-    ApplicationUser.cs
-    Refrigerator.cs
-    Shelf.cs
-    FoodItem.cs
-  /Enums
-    FoodCategory.cs
-    FoodStatus.cs
-    ExpiryState.cs
-/Services
-  IInventoryService.cs / InventoryService.cs
-  ICapacityService.cs  / CapacityService.cs
-  IUserAdminService.cs / UserAdminService.cs
-  ExpiryRules.cs
-  UserClaims.cs
-  UserClock.cs
-  FoodDisplay.cs
-  UploadPaths.cs
-  LocalUrls.cs
-  /Models
-    FoodItemForm.cs
-    FoodFilter.cs
-    FoodSort.cs
-    OperationResult.cs
-    DashboardStats.cs
-    AdminUserDto.cs
-    ShelfUsageDto.cs
-    UserUsageDto.cs
-/wwwroot
-  /css/theme.css        (fm-* primitives; primary UI)
-  /images/categories/   (drink.webp, snack.webp, meal.webp, ingredient.webp, other.webp)
-  /uploads/             (user-uploaded photos, gitignored)
-```
+The live file list (including extension services such as `IImageStorage` and AI analysis) is in [DESIGN.md](DESIGN.md) under **Folders**. Do not maintain a second inventory here.
+
+These constraints stay mandatory:
+
+- Dashboard is `Components/Pages/Home.razor`.
+- `Components/Account/**` remains static SSR. Do not remove `[ExcludeFromInteractiveRouting]`, do not add `@rendermode`, and do not move POST handlers or Identity registration out. Shared URL/path helpers may live in `/Services`.
+- Pages stay thin: they call services and render. New `fm-*` pages go under `Components/Pages` or `Components/Shared`.
 
 ------
 
@@ -376,7 +327,7 @@ otherwise                           → Normal
 | Change others' item status | ❌ | ✅ |
 | Manage users | ❌ | ✅ |
 
-Users are never deleted — including via Identity's "delete personal data" page, which must not delete an account. `ApplicationUser.IsActive = false` disables login and circuit revalidation, and omits the member from the dashboard usage table, while preserving their items. Disabled members stay on the admin table so they can be re-enabled. There is no owner picker on create; the owner is always the signed-in user.
+Users are never deleted on any product path — including Identity's "delete personal data" page, which must not delete an account. (The demo seeder may remove a leftover `admin@example.com` that owns no items; that is seed hygiene, not a product delete.) `ApplicationUser.IsActive = false` disables login and circuit revalidation, and omits the member from the dashboard usage table, while preserving their items. Disabled members stay on the admin table so they can be re-enabled, and they stay on the food-list Owner select (labelled `(disabled)`) so their items remain findable. There is no owner picker on create; the owner is always the signed-in user.
 
 Sign-in identifier is **email**. `UserName` stays unique in Identity and is the display name; it is not a sign-in identifier.
 
@@ -437,7 +388,9 @@ Task<List<UserUsageDto>>     GetAllUserUsageAsync();
 Task<DashboardStats>         GetDashboardStatsAsync(DateOnly today);
 ```
 
-`GetDashboardStatsAsync` returns all dashboard numbers in a single call. Do not issue one query per statistic. The caller supplies `today` in the viewer's time zone.
+`GetDashboardStatsAsync` returns all dashboard numbers in a single call. Do not issue one query per statistic. The caller supplies `today` in the viewer's time zone. Member rows in those stats are **active** users only.
+
+`GetAllUserUsageAsync` returns every member, including disabled ones, and each `UserUsageDto` carries `IsActive`. The food-list Owner select and the create-form allowance panel use this list. Do not reuse it as the dashboard member table.
 
 ### 7.4 IUserAdminService
 
@@ -490,11 +443,21 @@ Dashboard stat cells and shelf headers may deep-link into `/food?...` using the 
 
 ### 8.2 `/food` — Food List
 
-Card grid. Each card shows: image, name, owner, category, relative expiration (`Expires in 3 days` / `Expired 2 days ago`), size, shared badge, expiry-state badge. The card may also show the shelf name. Hovering the relative label shows the absolute date.
+Card grid. Each card shows: image, name, owner, category, relative expiration, size, shared badge, expiry-state badge. The card may also show the shelf name. Hovering the relative label shows the absolute date.
+
+Relative card labels (`FoodDisplay.ExpiryCardLabel`):
+
+```text
+> 1 day ahead   → Expires in {n} days
+tomorrow        → Expires tomorrow
+today           → Expires today
+yesterday       → Expired yesterday
+older           → Expired {n} days ago
+```
 
 Expiry badge colours: Normal = neutral, ExpiringSoon = warning, Expired = danger.
 
-An owner or Admin may **Discard** an Active expired item from the card. When that Discard control is shown it **replaces** the shared badge on that card (detail still shows both). Discard still goes through `ChangeStatusAsync`; hiding the badge is list UX only.
+An owner or Admin may **Discard** an Active expired item from the card. When that Discard control is shown it **replaces** the shared badge on that card (detail still shows both). Discard still goes through `ChangeStatusAsync`. The expired-only restriction is list UX; `ChangeStatusAsync` still allows any Active → Discarded (§6.6).
 
 Filter bar, applied server-side, no submit button:
 
@@ -513,7 +476,7 @@ Filter state lives in the `/food?...` query string. Changing a control navigates
 
 ### 8.3 `/food/{Id:int}` — Food Detail
 
-Displays all fields including `PositionNote` and `Note`. Expiration is the calendar date with a parenthetical day count (`6 September 2026 (in 3 days)`). Added and last-updated timestamps use the viewer's time zone.
+Displays all fields including `PositionNote` and `Note`. Expiration is the calendar date with a parenthetical day count (`FoodDisplay.ExpirationDetail`), e.g. `6 September 2026 (in 3 days)`, or `(today)` / `(tomorrow)` / `(expired {n} day(s) ago)`. Added and last-updated timestamps use the viewer's time zone.
 
 If the current user is the owner or an Admin, show: **Edit**, **Mark as Consumed**, **Mark as Missing**, **Mark as Discarded**. Status buttons are hidden when the item is not `Active`.
 
@@ -537,18 +500,17 @@ Disabled members may sit in a separate section of the same page. They must remai
 
 Card and detail images use a fixed aspect ratio with `object-fit: cover`.
 
-Resolution order: a **safe stored** `ImagePath` (`/uploads/{guid:N}.{jpg|png|webp}`), otherwise `/images/categories/{category}.webp`. A non-null but unsafe `ImagePath` must not be rendered.
+Storage keys, ImageSharp normalisation, provider selection, replacement deletes, and URL resolution are defined in [SPEC_EXTENSIONS.md](SPEC_EXTENSIONS.md) §4. That document supersedes the historical `/uploads/{guid:N}.{jpg|png|webp}` stored-path shape.
 
-Upload rules:
+Rules that still apply here:
 
 - `InputFile` component, single file
-- Accept JPG / PNG / WebP only, validated by content type **and** matching magic bytes
-- Max 5 MB, enforced via `OpenReadStream(5 * 1024 * 1024)`
-- Filename is `Guid.NewGuid("N")` plus a server-determined extension; the client-supplied filename is never used
-- Saved to `wwwroot/uploads/`; the database stores the site-root-relative URL `/uploads/{guid}.ext`
-- `ImagePath` on create/update must be empty or that same safe shape
-- If create/update fails after an upload, delete the file so it is not left behind
-- `/uploads` is served only to authenticated users; responses set `X-Content-Type-Options: nosniff`
+- Accept JPG / PNG / WebP only; do not trust content type or filename alone
+- Max 5 MB, enforced via `OpenReadStream(5 * 1024 * 1024)` before buffering
+- The client-supplied filename is never used
+- `ImagePath` on create/update must be empty or a safe storage key
+- If create/update fails after an upload, delete the new object so it is not left behind
+- Local `/uploads` is served only to authenticated users; responses set `X-Content-Type-Options: nosniff`
 
 ### 8.7 Account / identity
 
@@ -640,6 +602,8 @@ ExpiryState for today + 2                  → ExpiringSoon
 ExpiryState for today + 10                 → Normal
 ```
 
+Image pipeline, AI autofill, and production bootstrap tests are required by [SPEC_EXTENSIONS.md](SPEC_EXTENSIONS.md) §7.1. In that list, “rejected” for an AI field means the field is dropped to `null` with a warning; the analysis result itself still succeeds.
+
 ------
 
 ## 12. Error Handling
@@ -657,12 +621,12 @@ Document these in the README; do not attempt to fix them.
 
 1. **Capacity check race condition.** The guard and the insert are not in one transaction. Two concurrent creates can both pass and overfill a shelf. Production fix: wrap both in a transaction with a row lock on `Shelf`, or add a `RowVersion` concurrency token with retry.
 2. **Interactive Server scaling.** Each user holds a server-side circuit with in-memory state. Horizontal scaling requires sticky sessions or a Redis backplane.
-3. **Local file storage.** Uploaded images are on the local filesystem and do not survive redeployment or scale out.
-4. **No audit trail.** Status changes are not recorded historically.
-5. **Size units are an approximation** and do not reflect real volume.
-6. **Orphan upload files.** Replacing a photo does not delete the previous file. A missing file at a safe `ImagePath` 404s; the UI does not fall back to the category plate in that case.
-7. **Disable takes effect on the next revalidation.** After `IsActive = false`, an existing Interactive Server circuit may stay up until security-stamp revalidation (up to 30 minutes). New logins are blocked immediately.
-8. **Identity template remnants.** Passkey, 2FA, and Forgot-password pages from the template may remain. They are not product features. External login must not create accounts.
+3. **No audit trail.** Status changes are not recorded historically.
+4. **Size units are an approximation** and do not reflect real volume.
+5. **Disable takes effect on the next revalidation.** After `IsActive = false`, an existing Interactive Server circuit may stay up until security-stamp revalidation (up to 30 minutes). New logins are blocked immediately.
+6. **Identity template remnants.** Passkey, 2FA, and Forgot-password pages from the template may remain. They are not product features. External login must not create accounts.
+
+Former items (local-only uploads, orphan files on replacement, missing-file 404, `/uploads/{guid}.ext` path shape) are overridden by [SPEC_EXTENSIONS.md](SPEC_EXTENSIONS.md) §0.1 / §4.
 
 ------
 
@@ -671,8 +635,9 @@ Document these in the README; do not attempt to fix them.
 Do not implement unless every phase above is complete:
 
 - Status history
-- AI photo autofill
 - Announcement board
 - Placement recommendation
 - Expiry notifications
 - Multi-refrigerator support
+
+AI photo autofill is specified in [SPEC_EXTENSIONS.md](SPEC_EXTENSIONS.md) §8 and is in scope for that extension.

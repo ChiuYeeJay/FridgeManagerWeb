@@ -30,7 +30,7 @@ services:
       - key: Gemini__Model
         value: gemini-3.5-flash-lite
       - key: Gemini__TimeoutSeconds
-        value: "20"
+        value: "45"
       - key: Gemini__MaxRequestsPerUserPerHour
         value: "20"
       - key: Seed__DemoData

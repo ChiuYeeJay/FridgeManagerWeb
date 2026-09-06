@@ -215,8 +215,8 @@ R2__PublicBaseUrl=...
 
 Gemini__Enabled=true
 Gemini__ApiKey=...
-Gemini__Model=gemini-3.6-flash
-Gemini__TimeoutSeconds=20
+Gemini__Model=gemini-3.5-flash-lite
+Gemini__TimeoutSeconds=45
 Gemini__MaxRequestsPerUserPerHour=20
 
 Seed__AdminUserName=...
@@ -654,9 +654,9 @@ storage keys are server-generated and match IsSafeStorageKey
 legacy /uploads/... values resolve to null (category plate)
 LocalImageStorage round-trip: Save → file exists under wwwroot/uploads → Delete removes it
 
-AI result with invalid category is rejected
-AI result with malformed date is rejected
-AI result with unsupported SizeUnits is rejected
+AI result with invalid category drops that field to null (analysis still succeeds)
+AI result with malformed date drops that field to null (analysis still succeeds)
+AI result with unsupported SizeUnits drops that field to null (analysis still succeeds)
 AI failure does not create a FoodItem
 AI rate limit rejects the 21st request within an hour
 AI suggestions never bypass quota checks
@@ -750,7 +750,9 @@ normal form submission
 existing InventoryService validation
 ```
 
-The AI operation must be explicitly initiated by the user. Selecting a file alone must not send it to Gemini. `FoodForm` reuses the bytes it already buffered for the preview; do not re-read the `IBrowserFile`.
+The AI **analysis** must be explicitly initiated by the user. Selecting a file alone must not send the photo to Gemini. `FoodForm` reuses the bytes it already buffered for the preview; do not re-read the `IBrowserFile`.
+
+When `Gemini__Enabled=true`, opening `/food/new` may fire a tiny **text-only** `generateContent` warmup (no image, no user identity) so the later photo request is less likely to pay a cold-start wait. That warmup is not the analysis, must not send the photo, and must not consume the per-user hourly analysis quota (§8.11).
 
 ---
 
@@ -783,6 +785,8 @@ public interface IFoodImageAnalysisService
         string contentType,
         ClaimsPrincipal user,
         CancellationToken cancellationToken = default);
+
+    Task WarmupAsync(CancellationToken cancellationToken = default);
 }
 
 // Provider boundary. Receives an already-processed image and nothing about the user.
@@ -792,8 +796,12 @@ public interface IFoodImageAnalyzer
         byte[] processedImage,
         string contentType,
         CancellationToken cancellationToken = default);
+
+    Task WarmupAsync(CancellationToken cancellationToken = default);
 }
 ```
+
+`WarmupAsync` is the §8.2 text-only connection warm-up. Default implementations may be no-ops. It must not send image bytes or count against the hourly analysis limit.
 
 `FoodImageAnalysisService` responsibilities, in order:
 
@@ -818,12 +826,13 @@ public sealed record FoodImageAnalysisResult(
     FoodCategory? Category,
     DateOnly? ExpirationDate,
     int? SizeUnits,
+    string? Note,
     IReadOnlyList<string> Warnings);
 ```
 
-The AI may suggest only `Name`, `Category`, `ExpirationDate`, `SizeUnits`.
+The AI may suggest `Name`, `Category`, `ExpirationDate`, `SizeUnits`, and `Note`.
 
-The AI must never set `Owner`, `Shelf`, `IsShared`, `Status`, `PositionNote`, permissions, quota, or capacity. Those remain user-controlled or domain-controlled.
+The AI must never set `Owner`, `Shelf`, `IsShared`, `Status`, `PositionNote`, permissions, quota, or capacity. Those remain user-controlled or domain-controlled. Packaging cautions belong in `Note`; `warnings` is reserved for analysis problems (no food found, unreadable date).
 
 ---
 
@@ -835,7 +844,9 @@ The AI must never set `Owner`, `Shelf`, `IsShared`, `Status`, `PositionNote`, pe
 
 **ExpirationDate** — only when a relevant date is visibly readable from the image. The model must not estimate shelf life from food type. Server-side: reject dates that fail to parse as ISO `yyyy-MM-dd`, dates more than 5 years in the future, or dates before 2000-01-01 (treat as misread).
 
-**SizeUnits** — 1, 2, or 3. Any other value becomes null.
+**SizeUnits** — 1, 2, or 3. Any other value becomes null. The prompt describes the grab-test: 1 = both palms wrap it, 2 = one hand lifts it, 3 = both hands.
+
+**Note** — optional short team note (storage hint, leftover, opened, packaging caution). Trimmed, at most the `FoodItemForm.Note` max length; longer values are truncated, empty values become null. Do not invent a note.
 
 ---
 
@@ -844,12 +855,12 @@ The AI must never set `Owner`, `Shelf`, `IsShared`, `Status`, `PositionNote`, pe
 ```text
 Gemini__Enabled                   bool, default false
 Gemini__ApiKey                    required when Enabled
-Gemini__Model                     default "gemini-3.6-flash"
-Gemini__TimeoutSeconds            default 20
+Gemini__Model                     default "gemini-3.5-flash-lite"
+Gemini__TimeoutSeconds            default 45
 Gemini__MaxRequestsPerUserPerHour default 20
 ```
 
-Bind to a `GeminiOptions` record with these defaults so development runs with an empty `Gemini` section. Do not hard-code API keys, model names, or request limits anywhere else.
+Bind to a `GeminiOptions` **class** with setters (same pattern as `R2Options`) and these defaults so development runs with an empty `Gemini` section. Do not hard-code API keys, model names, or request limits anywhere else. Why Flash Lite and 45 s: [adr/007-gemini-extraction-profile.md](adr/007-gemini-extraction-profile.md).
 
 ---
 
@@ -876,14 +887,18 @@ Request body: the processed image as an `inlineData` part (`mimeType: image/webp
       "category":       { "type": "STRING",  "nullable": true, "enum": ["Drink","Snack","Meal","Ingredient","Other"] },
       "expirationDate": { "type": "STRING",  "nullable": true, "description": "yyyy-MM-dd, only if visibly printed" },
       "sizeUnits":      { "type": "INTEGER", "nullable": true },
+      "note":           { "type": "STRING",  "nullable": true },
       "warnings":       { "type": "ARRAY",   "items": { "type": "STRING" } }
     },
-    "required": ["name","category","expirationDate","sizeUnits","warnings"]
-  }
+    "required": ["name","category","expirationDate","sizeUnits","note","warnings"]
+  },
+  "thinkingConfig": { "thinkingLevel": "minimal" }
 }
 ```
 
-Deserialize the first candidate's text part into a private DTO, then map to `FoodImageAnalysisResult`. The server must still validate the deserialized result (§8.6). Never trust model output merely because it matches JSON syntax. Any HTTP error, timeout, empty candidate, or JSON error returns `OperationResult.Fail(...)` with the §8.13 message and is logged at warning level without the API key or image bytes.
+Deserialize the first candidate's text part into a private DTO, then map to `FoodImageAnalysisResult`. The server must still validate the deserialized result (§8.6). Never trust model output merely because it matches JSON syntax.
+
+HTTP 503 is retried once after a short delay. Any other HTTP error, timeout, empty candidate, or JSON error returns `OperationResult.Fail(...)` with a §8.13 message and is logged at warning level without the API key or image bytes.
 
 ---
 
@@ -903,9 +918,17 @@ or equivalent date is visibly readable. Format it as yyyy-MM-dd.
 category must be exactly one of:
 Drink, Snack, Meal, Ingredient, Other.
 
-sizeUnits must be 1, 2, or 3 (1 = small item, 3 = large item).
+sizeUnits must be 1, 2, or 3 based on how a person would pick the item up:
+- 1 (small): both palms can wrap around it
+- 2 (medium): one hand can lift it
+- 3 (large): needs both hands
 
 name is a short product name, at most a few words.
+
+note is an optional short team note. Put packaging cautions here,
+not in warnings. Do not invent a note.
+
+warnings is only for analysis problems (no food visible, unreadable date).
 
 If a value cannot be determined reliably, return null.
 
@@ -928,7 +951,7 @@ Do not send the original filename, EXIF metadata, local paths, R2 credentials, u
 
 Only authenticated users may use AI analysis. Apply a simple configurable per-user sliding-window limit, default 20 analyses / user / hour.
 
-Implement as a `Singleton` `AiRateLimiter` holding `ConcurrentDictionary<string userId, Queue<DateTime>>`; `FoodImageAnalysisService` (Scoped) injects it. Count a request when it is made, not when it succeeds, so failures still consume quota (this protects the demo API key).
+Implement as a `Singleton` `AiRateLimiter` holding `ConcurrentDictionary<string userId, Queue<DateTime>>`; `FoodImageAnalysisService` (Scoped) injects it. Count a request when it is made, not when it succeeds, so failures still consume quota (this protects the demo API key). The §8.2 text-only warmup does not go through the limiter.
 
 A limit violation returns `Fail("You have used all AI analyses for this hour. You can continue filling the form manually.")`.
 
@@ -950,19 +973,22 @@ Pass the component's cancellation token; cancellation caused by navigation or a 
 
 Gemini timeout, unavailability, quota exhaustion, invalid JSON, invalid structured response, uninterpretable image, and rate-limit rejection must not destroy or reset the user's form.
 
-Show:
+Show one of:
 
 ```text
 AI analysis could not be completed. You can continue filling the form manually.
+AI analysis timed out. You can continue filling the form manually.
+AI analysis is temporarily unavailable. You can continue filling the form manually.
+AI analysis quota was reached. You can continue filling the form manually.
 ```
 
-(or the specific rate-limit message). Existing manually entered values remain intact. An AI failure must never prevent ordinary manual item creation. AI autofill is an enhancement, not a required dependency.
+(or the specific rate-limit message). Use the generic sentence for invalid JSON and most HTTP errors; use the more specific sentences for timeout, HTTP 503, and HTTP 429 so a smoke test can tell them apart. Existing manually entered values remain intact. An AI failure must never prevent ordinary manual item creation. AI autofill is an enhancement, not a required dependency.
 
 ---
 
 ## 8.14 Applying Suggestions
 
-After a successful analysis, for each of the four supported fields:
+After a successful analysis, for each of the five supported fields (Name, Category, ExpirationDate, SizeUnits, Note):
 
 - a **non-null** suggestion fills the field only when the user has not already typed or selected a value, and then marks the control as AI-suggested (an `fm-tag` "AI" beside the label and a subtle border; cleared when the user edits that control)
 - a **non-null** suggestion must not overwrite a value the user has already entered; that control shows no new AI marker
@@ -1220,7 +1246,7 @@ The required extension is complete only when all non-optional items are true.
 [ ] disclosure is visible before analysis
 [ ] image is normalized (1600 px, no metadata) before external submission
 [ ] API key remains server-side
-[ ] model is configuration-driven (default gemini-3.6-flash)
+[ ] model is configuration-driven (default gemini-3.5-flash-lite)
 [ ] structured output is validated server-side
 [ ] AI cannot set owner, shelf, sharing status, status, or PositionNote
 [ ] AI never creates the item directly

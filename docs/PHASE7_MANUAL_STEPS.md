@@ -1,6 +1,6 @@
 # Phase 7 Manual Steps (Gemini API key and smoke test)
 
-The code is complete: `/food/new` can autofill Name, Category, Expiration date, and Size from a photo. Automated tests never call Gemini. Local `dotnet run` and `docker compose` keep `Gemini:Enabled=false`, so the Analyze button stays hidden until you turn it on.
+The code is complete: `/food/new` can autofill Name, Category, Expiration date, Size, and Note from a photo. Automated tests never call Gemini. Local `dotnet run` and `docker compose` keep `Gemini:Enabled=false`, so the Analyze button stays hidden until you turn it on.
 
 Do not commit the API key to git.
 
@@ -32,7 +32,7 @@ dotnet run
 3. Choose a **non-sensitive** food photo (a labelled yogurt or milk carton is ideal).
 4. Read the disclosure under the photo. It must be visible **before** you click **Analyze with AI**.
 5. Click **Analyze with AI**. The button should disable immediately and show `Analyzing photo...`. A second click must not start another request.
-6. Suggested Name / Category / Size / Expiration (only if a date is printed) fill fields you have not typed or changed, and show an **AI** tag. Values you already entered stay. Empty suggestions leave the current value alone.
+6. Suggested Name / Category / Size / Note / Expiration (only if a date is printed) fill fields you have not typed or changed, and show an **AI** tag. Values you already entered stay. Empty suggestions leave the current value alone.
 7. Edit a suggested field: the AI tag on that control should disappear.
 8. Pick a shelf (AI never sets shelf, owner, sharing, or position) and **Save item**. The item is created through the existing quota and capacity checks.
 9. Open DevTools → Network. The browser must not send `Gemini__ApiKey` or call `generativelanguage.googleapis.com` directly.
@@ -62,7 +62,7 @@ Blueprint updates **do not** prompt again for `sync: false` variables. Add the k
    | `Gemini__Enabled` | `true` (Blueprint will also set this) |
    | `Gemini__ApiKey` | the AI Studio key |
    | `Gemini__Model` | `gemini-3.5-flash-lite` (optional; Blueprint sets it) |
-   | `Gemini__TimeoutSeconds` | `20` |
+   | `Gemini__TimeoutSeconds` | `45` |
    | `Gemini__MaxRequestsPerUserPerHour` | `20` |
 
 3. Save. Then push the Phase 7 commit (or trigger a Manual Deploy).
