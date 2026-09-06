@@ -203,7 +203,7 @@ static void AddGemini(WebApplicationBuilder builder)
         ?? new GeminiOptions();
     if (gemini.Enabled)
     {
-        var timeoutSeconds = gemini.TimeoutSeconds > 0 ? gemini.TimeoutSeconds : 20;
+        var timeoutSeconds = gemini.TimeoutSeconds > 0 ? gemini.TimeoutSeconds : 45;
         builder.Services.AddHttpClient(GeminiOptions.HttpClientName, client =>
         {
             client.BaseAddress = new Uri("https://generativelanguage.googleapis.com/");

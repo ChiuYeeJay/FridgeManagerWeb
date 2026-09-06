@@ -71,6 +71,11 @@ public sealed class FoodImageAnalysisService(
         return OperationResult<FoodImageAnalysisResult>.Ok(Sanitize(analyzed.Value));
     }
 
+    public Task WarmupAsync(CancellationToken cancellationToken = default)
+        => options.Value.Enabled
+            ? analyzer.WarmupAsync(cancellationToken)
+            : Task.CompletedTask;
+
     internal static FoodImageAnalysisResult Sanitize(FoodImageAnalysisResult raw)
     {
         ArgumentNullException.ThrowIfNull(raw);

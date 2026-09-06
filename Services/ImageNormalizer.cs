@@ -1,4 +1,5 @@
 using SixLabors.ImageSharp;
+using SixLabors.ImageSharp.Formats;
 using SixLabors.ImageSharp.Formats.Webp;
 using SixLabors.ImageSharp.Processing;
 
@@ -23,7 +24,11 @@ public static class ImageNormalizer
 
         try
         {
-            using var image = Image.Load(bytes);
+            var info = Image.Identify(bytes);
+            var decoder = info is not null && Math.Max(info.Width, info.Height) > maxLongEdge
+                ? new DecoderOptions { TargetSize = new Size(maxLongEdge, maxLongEdge) }
+                : new DecoderOptions();
+            using var image = Image.Load(decoder, bytes);
             image.Mutate(x => x.AutoOrient());
 
             image.Metadata.ExifProfile = null;

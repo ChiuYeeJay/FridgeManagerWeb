@@ -149,6 +149,44 @@ public sealed class GeminiFoodImageAnalyzer(
         return OperationResult<FoodImageAnalysisResult>.Fail(UnavailableMessage);
     }
 
+    private static long _lastWarmupTick;
+
+    public async Task WarmupAsync(CancellationToken cancellationToken = default)
+    {
+        var now = Environment.TickCount64;
+        var last = Interlocked.Read(ref _lastWarmupTick);
+        if (last != 0 && now - last < 120_000)
+        {
+            return;
+        }
+
+        if (Interlocked.CompareExchange(ref _lastWarmupTick, now, last) != last)
+        {
+            return;
+        }
+
+        var gemini = options.Value;
+        var client = httpClientFactory.CreateClient(GeminiOptions.HttpClientName);
+        try
+        {
+            using var request = new HttpRequestMessage(
+                HttpMethod.Post,
+                $"v1beta/models/{Uri.EscapeDataString(gemini.Model)}:generateContent");
+            request.Headers.TryAddWithoutValidation("x-goog-api-key", gemini.ApiKey);
+            request.Content = new StringContent(
+                """{"contents":[{"parts":[{"text":"ok"}]}],"generationConfig":{"maxOutputTokens":1,"thinkingConfig":{"thinkingLevel":"minimal"}}}""",
+                Encoding.UTF8,
+                "application/json");
+            using (await client.SendAsync(request, cancellationToken))
+            {
+            }
+        }
+        catch (Exception ex) when (ex is not OperationCanceledException || !cancellationToken.IsCancellationRequested)
+        {
+            logger.LogDebug(ex, "Gemini warmup request did not complete.");
+        }
+    }
+
     private HttpRequestMessage CreateRequest(byte[] processedImage, GeminiOptions gemini)
     {
         var url = $"v1beta/models/{Uri.EscapeDataString(gemini.Model)}:generateContent";

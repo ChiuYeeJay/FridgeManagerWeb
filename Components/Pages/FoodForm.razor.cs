@@ -183,6 +183,10 @@ public partial class FoodForm : IDisposable, IAsyncDisposable
             Form.ExpirationDate = Clock.Today;
             Form.SizeUnits = 1;
             Form.ShelfId = _shelves.FirstOrDefault()?.ShelfId ?? 0;
+            if (Gemini.Value.Enabled)
+            {
+                _ = Analysis.WarmupAsync();
+            }
         }
 
         _loading = false;

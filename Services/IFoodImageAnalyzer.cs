@@ -8,4 +8,7 @@ public interface IFoodImageAnalyzer
         byte[] processedImage,
         string contentType,
         CancellationToken cancellationToken = default);
+
+    Task WarmupAsync(CancellationToken cancellationToken = default)
+        => Task.CompletedTask;
 }

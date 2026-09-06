@@ -10,4 +10,7 @@ public interface IFoodImageAnalysisService
         string contentType,
         ClaimsPrincipal user,
         CancellationToken cancellationToken = default);
+
+    Task WarmupAsync(CancellationToken cancellationToken = default)
+        => Task.CompletedTask;
 }
