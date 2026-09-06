@@ -6,7 +6,20 @@ namespace FridgeManager.Services;
 
 public static class FoodDisplay
 {
-    private static readonly CultureInfo English = CultureInfo.GetCultureInfo("en-GB");
+    private static readonly CultureInfo English = CreateEnglish();
+
+    private static CultureInfo CreateEnglish()
+    {
+        var culture = (CultureInfo)CultureInfo.GetCultureInfo("en-GB").Clone();
+        string[] abbreviated =
+        [
+            "Jan", "Feb", "Mar", "Apr", "May", "Jun",
+            "Jul", "Aug", "Sep", "Oct", "Nov", "Dec", ""
+        ];
+        culture.DateTimeFormat.AbbreviatedMonthNames = abbreviated;
+        culture.DateTimeFormat.AbbreviatedMonthGenitiveNames = abbreviated;
+        return culture;
+    }
 
     public static string SizeLabel(int sizeUnits) => sizeUnits switch
     {
