@@ -2,16 +2,16 @@
 
 A shared-refrigerator inventory tool for a small team (~5 people, ~30 items, one fridge, four shelves). Tracks food items, owners, expiry, sharing, shelf placement, per-user item quotas, and per-shelf capacity.
 
-Portfolio demo: a single Blazor Interactive Server instance on Render, with Render PostgreSQL and Cloudflare R2 for uploaded photos.
+This branch (`deploy/heroku`) is the Heroku demo: one Blazor Interactive Server web dyno, Heroku Postgres, and Cloudflare R2 for uploaded photos. Keep exactly one web dyno.
 
 ## Architecture
 
 ```text
-Browser ═══ SignalR / HTTPS ═══▶ FridgeManager (.NET 10, Docker, Render)
+Browser ═══ SignalR / HTTPS ═══▶ FridgeManager (.NET 10, Heroku web dyno)
                                        │
                     ┌──────────────────┼──────────────────┐
                     ▼                  ▼                  ▼
-           Render PostgreSQL    Cloudflare R2      Google Gemini
+           Heroku Postgres      Cloudflare R2      Google Gemini
            app + Identity +     uploaded images    photo autofill
            Data Protection keys (public URL)       (processed image only)
 ```
@@ -22,7 +22,7 @@ Browser ═══ SignalR / HTTPS ═══▶ FridgeManager (.NET 10, Docker, R
 - Images: `IImageStorage` — local files in Development / docker compose, Cloudflare R2 in production
 - UI: `wwwroot/css/theme.css` (`fm-*` primitives)
 
-Spec: `[docs/SPEC.md](docs/SPEC.md)`. Extensions: `[docs/SPEC_EXTENSIONS.md](docs/SPEC_EXTENSIONS.md)`. Design: `[docs/DESIGN.md](docs/DESIGN.md)`. Decisions: `[docs/adr/](docs/adr/)`. Render/R2 setup: `[docs/PHASE6_MANUAL_STEPS.md](docs/PHASE6_MANUAL_STEPS.md)`. Gemini API key and smoke test: `[docs/PHASE7_MANUAL_STEPS.md](docs/PHASE7_MANUAL_STEPS.md)`. Security verification after deploy: `[docs/PHASE9_MANUAL_STEPS.md](docs/PHASE9_MANUAL_STEPS.md)`.
+Spec: `[docs/SPEC.md](docs/SPEC.md)`. Extensions: `[docs/SPEC_EXTENSIONS.md](docs/SPEC_EXTENSIONS.md)`. Design: `[docs/DESIGN.md](docs/DESIGN.md)`. Decisions: `[docs/adr/](docs/adr/)`. Heroku deploy: `[docs/HEROKU_DEPLOYMENT.md](docs/HEROKU_DEPLOYMENT.md)`. Render/R2 setup (fallback): `[docs/PHASE6_MANUAL_STEPS.md](docs/PHASE6_MANUAL_STEPS.md)`. Gemini API key and smoke test: `[docs/PHASE7_MANUAL_STEPS.md](docs/PHASE7_MANUAL_STEPS.md)`. Security verification after deploy: `[docs/PHASE9_MANUAL_STEPS.md](docs/PHASE9_MANUAL_STEPS.md)`.
 
 ## Local development
 
@@ -55,7 +55,7 @@ Automated tests use SQLite in memory, `FakeImageStorage`, and `FakeFoodImageAnal
 
 ## Continuous integration
 
-[`.github/workflows/ci.yml`](.github/workflows/ci.yml) runs on every push and pull request to `main`:
+[`.github/workflows/ci.yml`](.github/workflows/ci.yml) runs on every push and pull request to `main` or `deploy/heroku`:
 
 ```text
 dotnet restore
@@ -85,9 +85,21 @@ Then open [http://localhost:8080](http://localhost:8080).
 
 `ImageStorage__Provider=Local` and `Gemini__Enabled=false` are set in compose (offline demo; Analyze with AI is hidden). Do not put real production secrets in this file.
 
-## Production deployment (Render)
+## Production deployment (Heroku)
 
-Blueprint: `[render.yaml](render.yaml)`. Step-by-step (R2 bucket, Blueprint secrets, smoke test): `[docs/PHASE6_MANUAL_STEPS.md](docs/PHASE6_MANUAL_STEPS.md)`. Gemini key and Render smoke test: `[docs/PHASE7_MANUAL_STEPS.md](docs/PHASE7_MANUAL_STEPS.md)`.
+This branch deploys through Heroku GitHub Integration from `deploy/heroku`. Runbook: `[docs/HEROKU_DEPLOYMENT.md](docs/HEROKU_DEPLOYMENT.md)`.
+
+- Stack: `heroku-24`, official `heroku/dotnet` buildpack (not the container stack, not the Dockerfile).
+- Database: Heroku Postgres Essential-0 via the platform `DATABASE_URL`.
+- Images and AI: the same Cloudflare R2 bucket and Gemini settings as before.
+- Formation: exactly **one** web dyno. Do not scale `web` above 1. Blazor Interactive Server has no Redis backplane.
+- Basic and Standard-1X both have 0.5 GB RAM; Standard-1X is not a larger machine. Use Standard-2X only if the dyno runs out of memory.
+
+Do not set `PORT`, `DATABASE_URL`, or `ASPNETCORE_HTTP_PORTS` by hand. After the first successful boot, unset `Seed__Admin*` and set `Seed__DemoData=false`. Scaling the web dyno to zero does not stop Postgres billing; destroy the app (or the database add-on) to stop all charges.
+
+## Production deployment (Render, fallback / legacy)
+
+Blueprint: `[render.yaml](render.yaml)`. Kept as the local/Render fallback. Step-by-step (R2 bucket, Blueprint secrets, smoke test): `[docs/PHASE6_MANUAL_STEPS.md](docs/PHASE6_MANUAL_STEPS.md)`. Gemini key and Render smoke test: `[docs/PHASE7_MANUAL_STEPS.md](docs/PHASE7_MANUAL_STEPS.md)`.
 
 
 | Variable                                                           | Purpose                                                                                 |

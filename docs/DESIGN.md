@@ -92,14 +92,17 @@ Expected rule violations never throw. They return `OperationResult` / `Operation
 | `Services` | `InventoryService`, `CapacityService`, `UserAdminService`, `IImageStorage` / `LocalImageStorage` / `R2ImageStorage`, `ImageNormalizer`, `IFoodImageAnalysisService` / `FoodImageAnalysisService`, `IFoodImageAnalyzer` / `GeminiFoodImageAnalyzer` / `FakeFoodImageAnalyzer`, `AiRateLimiter`, `GeminiOptions`, `AppOptions`, `UserClock`, `FormScroll`, `CapacityQueries`, `ExpiryRules`, `FoodDisplay`, `UserClaims`, `UploadPaths`, `LocalUrls`, `NpgsqlConnectionStrings`, `FoodListState`, `FoodSortPreference` |
 | `Services/Models` | Forms, filters, `FoodSort`, DTOs, `OperationResult`, `FoodImageAnalysisResult` |
 | `Data` | `AppDbContext` (`IDataProtectionKeyContext`), `DbSeeder`, `StartupBootstrap`, `SeedOptions`, entities, enums, migrations |
-| `Dockerfile` / `.dockerignore` | Production image; publishes the root `FridgeManager.csproj` only |
+| `Dockerfile` / `.dockerignore` | Render / local production image; publishes the root `FridgeManager.csproj` only. Not the Heroku runtime path. |
 | `docker-compose.yml` | Local production container + Postgres (throw-away `Seed__*` values) |
-| `render.yaml` | Render Blueprint: free web service + free Postgres; secrets are `sync: false` |
-| `.github/workflows/ci.yml` | restore / Release build / test / `docker build`; no credentials |
+| `render.yaml` | Render Blueprint fallback: free web service + free Postgres; secrets are `sync: false` |
+| `docs/HEROKU_DEPLOYMENT.md` | Heroku runbook for `deploy/heroku` (official `heroku/dotnet` buildpack, one web dyno) |
+| `.github/workflows/ci.yml` | restore / Release build / test / `docker build` on `main` and `deploy/heroku`; no credentials |
 | `wwwroot/css/theme.css` | Mockup tokens and `fm-*` primitives |
 | `wwwroot/js` | `password-toggle.js` (Account SSR); `busy-click.js` (immediate pending state on long Interactive Server actions); `time-zone.js` (browser IANA id for `UserClock`) |
 | `wwwroot/uploads` | Local-provider photos (`food-images/yyyy/MM/…`), gitignored; runtime files served with `UseStaticFiles` |
 | `tests/FridgeManager.Tests` | xUnit + EF Core SQLite `:memory:` |
+
+`deploy/heroku` uses the official `heroku/dotnet` buildpack on `heroku-24`, not the Dockerfile. Heroku Postgres supplies `DATABASE_URL`; R2 and Gemini stay the same providers. Startup still runs `MigrateAsync` then `StartupBootstrap`. The production formation is exactly one web dyno.
 
 ## Guards (SPEC §6.3)
 
@@ -230,7 +233,7 @@ Dashboard shelf remaining is the `FridgeElevation` chip row (chip flex grows wit
 
 The SPEC §11 list plus SPEC_EXTENSIONS §7.1 is the minimum. Add a test in `tests/FridgeManager.Tests` whenever a service rule or filter changes.
 
-GitHub Actions ([`.github/workflows/ci.yml`](../.github/workflows/ci.yml)) runs `dotnet restore`, `dotnet build -c Release`, `dotnet test -c Release`, and `docker build .` on every push and pull request to `main`. The workflow has no secrets and does not start Postgres or call R2 / Gemini.
+GitHub Actions ([`.github/workflows/ci.yml`](../.github/workflows/ci.yml)) runs `dotnet restore`, `dotnet build -c Release`, `dotnet test -c Release`, and `docker build .` on every push and pull request to `main` or `deploy/heroku`. The workflow has no secrets and does not start Postgres or call R2 / Gemini.
 
 ### Phase 9 verification
 
@@ -248,9 +251,9 @@ Accepted product decisions now live in the spec and in [adr/](adr/). Gemini mode
 - Password reveal uses `wwwroot/js/password-toggle.js` on static Account pages and component state on AdminUsers.
 - `docker-compose.yml` mounts Postgres 18 data at `/var/lib/postgresql` (not `/var/lib/postgresql/data`). The official `postgres:18` image stores versioned cluster data under that parent directory.
 - Runtime uploads are served with `UseStaticFiles` for `/uploads` in addition to `MapStaticAssets`, so files written after publish are reachable. The auth/`nosniff` middleware still runs first.
-- SPEC_EXTENSIONS §6.5 clears `ForwardedHeadersOptions.KnownNetworks`; that property is obsolete in .NET 10, so `Program.cs` clears `KnownIPNetworks` instead (same intent: trust Render’s proxy).
+- SPEC_EXTENSIONS §6.5 clears `ForwardedHeadersOptions.KnownNetworks`; that property is obsolete in .NET 10, so `Program.cs` clears `KnownIPNetworks` instead (same intent: trust the platform TLS proxy on Render or Heroku).
 - The web project references `Microsoft.AspNetCore.App.Internal.Assets` (the SDK auto-reference is not enough in a clean Docker publish). The Dockerfile fails the build if `wwwroot/_framework/blazor.web.js` is missing, because Interactive Server with prerender off is a blank page without it.
-- If `ConnectionStrings:DefaultConnection` is absent, `NpgsqlConnectionStrings.FromDatabaseUrl` accepts Render’s `DATABASE_URL` (`postgresql://…`) and appends `SSL Mode=Require;Trust Server Certificate=true`. Render Blueprints cannot interpolate variables, so this is how [`render.yaml`](../render.yaml) wires Postgres on first deploy. An explicit `ConnectionStrings__DefaultConnection` still wins.
+- If `ConnectionStrings:DefaultConnection` is absent, `NpgsqlConnectionStrings.FromDatabaseUrl` accepts a platform `DATABASE_URL` (`postgres://` or `postgresql://`) and appends `SSL Mode=Require;Trust Server Certificate=true`. Render and Heroku both use this parser. Render Blueprints cannot interpolate variables, so this is how [`render.yaml`](../render.yaml) wires Postgres on first deploy; Heroku Postgres injects `DATABASE_URL` the same way. An explicit `ConnectionStrings__DefaultConnection` still wins.
 - `R2ImageStorage` sets `DisablePayloadSigning` and `DisableDefaultChecksumValidation` on `PutObjectRequest`, and `RequestChecksumCalculation` / `ResponseChecksumValidation` to `WHEN_REQUIRED` on the client. Cloudflare R2 does not support the Streaming SigV4 checksum scheme AWSSDK.S3 uses by default.
 - Image processing uses **SixLabors.ImageSharp 3.1.12** (Apache-2.0). 4.x requires a Six Labors license key and fails `dotnet publish -c Release` (Docker / CI) without one. The APIs this app needs (`AutoOrient`, metadata strip, `WebpEncoder`) are unchanged.
 - Data Protection keys are stored in PostgreSQL without an XML encryptor (ASP.NET logs a warning). Acceptable for this demo; do not add a certificate solely to silence it.

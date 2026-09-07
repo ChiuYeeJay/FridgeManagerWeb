@@ -2,9 +2,14 @@ name: CI
 
 on:
   push:
-    branches: [main]
+    branches:
+      - main
+      - deploy/heroku
   pull_request:
-    branches: [main]
+    branches:
+      - main
+      - deploy/heroku
+  workflow_dispatch:
 
 jobs:
   build:

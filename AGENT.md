@@ -23,7 +23,7 @@ placement, per-user item quotas and per-shelf capacity.
 | Auth | ASP.NET Core Identity with roles (`Admin`, `User`) |
 | Tests | xUnit, EF Core SQLite `:memory:` (`tests/FridgeManager.Tests`) |
 | Styling | `wwwroot/css/theme.css` (`fm-*` primitives); Bootstrap only for residual template widgets |
-| Deployment | Docker (non-root `app` user, port 8080) → Render Web Service + Render PostgreSQL; Cloudflare R2 via `IImageStorage`; Gemini REST (no SDK) |
+| Deployment | `deploy/heroku`: official `heroku/dotnet` buildpack, exactly 1 web dyno, Heroku Postgres, Cloudflare R2 via `IImageStorage`, Gemini REST (no SDK). `Dockerfile` remains the Render / local production-container fallback. |
 
 ## Build, run, test
 
@@ -110,8 +110,8 @@ Architecture rules:
   Gemini SDK.
 - After changing `Program.cs` or `Components/App.razor`, re-check SPEC §3.
 - Configuration sections are `Seed`, `ImageStorage`, `R2`, and `Gemini`. Secrets
-  live in `dotnet user-secrets` (local) or Render environment variables
-  (production) — never in git.
+  live in `dotnet user-secrets` (local), Heroku config vars (`deploy/heroku`),
+  or Render environment variables (fallback) — never in git.
 - At the end of every extension phase, update `DESIGN.md` (layers, folders,
   deviations, known limitations). Do not edit `SPEC.md` unless asked.
 
@@ -120,9 +120,10 @@ Architecture rules:
 | Path | Role |
 |---|---|
 | `FridgeManager.csproj` | Web project (repository root) |
-| `Dockerfile` / `.dockerignore` | Production image; builds the web csproj only |
+| `Dockerfile` / `.dockerignore` | Render / local production image; not the Heroku runtime path |
 | `docker-compose.yml` | Local production-container + Postgres demo |
-| `render.yaml` | Render Blueprint (web + Postgres); secrets are `sync: false` |
+| `render.yaml` | Render Blueprint fallback (web + Postgres); secrets are `sync: false` |
+| `docs/HEROKU_DEPLOYMENT.md` | Heroku runbook: buildpack, one web dyno, config vars, smoke test, billing cleanup |
 | `Components/Pages` | `Home.razor` (dashboard), `FoodList`, `FoodDetail`, `FoodForm` (+ `.razor.cs`), `AdminUsers` |
 | `Components/Shared` | `FoodCard`, `FoodFilterBar`, `FridgeElevation`, `ErrorFallback`, `PasswordRevealButton` |
 | `Components/Account` | Template Identity pages — see convention 2; do not change in the extension |
