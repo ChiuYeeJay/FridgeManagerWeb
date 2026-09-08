@@ -23,15 +23,15 @@ services:
         value: "8080"
       - key: ImageStorage__Provider
         value: R2
-      - key: Gemini__Enabled
+      - key: OpenRouter__Enabled
         value: "true"
-      - key: Gemini__ApiKey
+      - key: OpenRouter__ApiKey
         sync: false
-      - key: Gemini__Model
-        value: gemini-3.5-flash-lite
-      - key: Gemini__TimeoutSeconds
+      - key: OpenRouter__Model
+        value: openai/gpt-4o-mini
+      - key: OpenRouter__TimeoutSeconds
         value: "45"
-      - key: Gemini__MaxRequestsPerUserPerHour
+      - key: OpenRouter__MaxRequestsPerUserPerHour
         value: "20"
       - key: Seed__DemoData
         value: "true"

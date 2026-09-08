@@ -2,7 +2,7 @@
 
 The code is complete: local development / `docker compose` uses local file storage, Render uses Cloudflare R2, and Data Protection keys are stored in PostgreSQL. From this point on, only account setup, cloud resources, and the first deployment require manual action.
 
-Do not commit any passwords, R2 keys, or Gemini keys to git.
+Do not commit any passwords, R2 keys, or OpenRouter keys to git.
 
 ---
 
@@ -124,7 +124,7 @@ The following values are already fixed in the Blueprint and do not need to be en
 - `ASPNETCORE_ENVIRONMENT=Production`
 - `PORT=8080`
 - `ImageStorage__Provider=R2`
-- `Gemini__Enabled=false` (change this in Phase 7)
+- `OpenRouter__Enabled=false` (change this in Phase 7)
 - `Seed__DemoData=true`
 - `DATABASE_URL` ← injected from the internal `connectionString` of `fridge-db` (the application converts it to Npgsql + `SSL Mode=Require`)
 
@@ -195,5 +195,5 @@ Render sometimes labels a **container startup crash** as a failed deploy/build; 
 - Render Web Service (free) goes to sleep after about 15 minutes without traffic; the next request may take about one minute.
 - Render PostgreSQL (free) expires about 30 days after creation; export the data or change plans before it expires.
 - Anyone with the URL can view R2 demo images. Do not upload IDs, close-up face photos, or private documents.
-- Gemini is not connected yet (`Gemini__Enabled=false`). Add the API key in Phase 7.
+- OpenRouter is not connected yet (`OpenRouter__Enabled=false`). Add the API key in Phase 7.
 

@@ -4,7 +4,7 @@ Self-contained runbook for the `deploy/heroku` branch. This is a temporary demo
 deployment for about one week. Do not treat it as long-term operations
 infrastructure.
 
-Do not commit passwords, R2 keys, Gemini keys, database URLs, or Heroku tokens.
+Do not commit passwords, R2 keys, OpenRouter keys, database URLs, or Heroku tokens.
 
 ---
 
@@ -17,7 +17,7 @@ Browser
   └─ .NET 10 / Blazor Interactive Server
        ├─ Heroku Postgres Essential-0
        ├─ Cloudflare R2
-       └─ Google Gemini API
+       └─ OpenRouter API
 ```
 
 The production formation is fixed as:
@@ -114,11 +114,11 @@ R2__SecretAccessKey=<secret>
 R2__BucketName=<existing bucket>
 R2__PublicBaseUrl=<existing public base URL>
 
-Gemini__Enabled=true
-Gemini__ApiKey=<secret>
-Gemini__Model=gemini-3.5-flash-lite
-Gemini__TimeoutSeconds=45
-Gemini__MaxRequestsPerUserPerHour=20
+OpenRouter__Enabled=true
+OpenRouter__ApiKey=<secret>
+OpenRouter__Model=openai/gpt-4o-mini
+OpenRouter__TimeoutSeconds=45
+OpenRouter__MaxRequestsPerUserPerHour=20
 
 Seed__DemoData=true
 Seed__AdminUserName=<bootstrap admin username>
@@ -129,10 +129,10 @@ Seed__AdminPassword=<strong temporary bootstrap password>
 If AI will not be demonstrated temporarily:
 
 ```text
-Gemini__Enabled=false
+OpenRouter__Enabled=false
 ```
 
-In that case, `Gemini__ApiKey` does not need to be set.
+In that case, `OpenRouter__ApiKey` does not need to be set.
 
 Do not set:
 
@@ -238,7 +238,7 @@ The runtime log must confirm:
 - roles/bootstrap succeeded;
 - there is no database SSL error;
 - there is no R2 options validation error;
-- when Gemini is enabled, there is no missing-key validation error;
+- when OpenRouter is enabled, there is no missing-key validation error;
 - the dyno is not crash-looping and has no memory quota error.
 
 Browser smoke test:
@@ -249,7 +249,7 @@ Browser smoke test:
 4. Confirm `/food` loads and filters can be applied.
 5. Create one food item.
 6. Upload an image and confirm it is displayed from R2.
-7. When Gemini is enabled, run **Analyze with AI** once.
+7. When OpenRouter is enabled, run **Analyze with AI** once.
 8. Edit the item and change its status.
 9. Sign out and sign back in.
 10. Keep the page open for a period of time and confirm the Blazor
@@ -439,7 +439,7 @@ Check first:
 
 - whether the seed admin values are complete before the first Admin is created;
 - whether all five R2 values are present when the R2 provider is enabled;
-- whether the API key exists when Gemini is enabled;
+- whether the API key exists when OpenRouter is enabled;
 - whether `DATABASE_URL` is provided by the add-on;
 - whether migration succeeded;
 - whether the app stack was incorrectly set to `container`.

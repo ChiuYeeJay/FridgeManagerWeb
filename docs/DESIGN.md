@@ -31,7 +31,7 @@ Components never inject `AppDbContext`. Every service method that talks to EF op
 
 `IImageStorage` is a **Singleton** (`LocalImageStorage` or `R2ImageStorage` from `ImageStorage:Provider`). `InventoryService` depends on the interface, not the filesystem or R2.
 
-`IFoodImageAnalysisService` is **Scoped**. It is the only AI entry point `FoodForm` calls. `IFoodImageAnalyzer` is the provider boundary (`GeminiFoodImageAnalyzer` when `Gemini:Enabled` is true, otherwise `FakeFoodImageAnalyzer`). `AiRateLimiter` is a **Singleton** (`ConcurrentDictionary` of per-user timestamps; not distributed). Authorization and rate limiting live in the analysis service, not in the analyzer.
+`IFoodImageAnalysisService` is **Scoped**. It is the only AI entry point `FoodForm` calls. `IFoodImageAnalyzer` is the provider boundary (`OpenRouterFoodImageAnalyzer` when `OpenRouter:Enabled` is true, otherwise `FakeFoodImageAnalyzer`). `AiRateLimiter` is a **Singleton** (`ConcurrentDictionary` of per-user timestamps; not distributed). Authorization and rate limiting live in the analysis service, not in the analyzer.
 
 Authorization is enforced in services (`UserClaims.CanModify`, `UserClaims.IsAdmin`). Pages may hide buttons with the same helpers; hiding UI is not the security boundary.
 
@@ -59,7 +59,7 @@ FoodForm.razor
   → disclosure visible + "Analyze with AI"
   → FoodImageAnalysisService.AnalyzeAsync(buffered bytes, ClaimsPrincipal, CT)
       → NameIdentifier required
-      → Gemini:Enabled
+      → OpenRouter:Enabled
       → AiRateLimiter.TryAcquire (counts on call)
       → ImageNormalizer.Normalize(bytes, 1600 px) → WebP, no metadata
       → IFoodImageAnalyzer.AnalyzeAsync(processed WebP)
@@ -89,7 +89,7 @@ Expected rule violations never throw. They return `OperationResult` / `Operation
 | `Components/Pages` | Dashboard (`Home.razor`), `FoodList`, `FoodDetail`, `FoodForm`, `AdminUsers` |
 | `Components/Shared` | `FoodCard`, `FoodFilterBar`, `FridgeElevation`, `ErrorFallback`, `PasswordRevealButton` |
 | `Components/Account` | Template Identity pages; static SSR. Markup/styles may change; `[ExcludeFromInteractiveRouting]`, form POST handlers, and Identity services must not move out. |
-| `Services` | `InventoryService`, `CapacityService`, `UserAdminService`, `IImageStorage` / `LocalImageStorage` / `R2ImageStorage`, `ImageNormalizer`, `IFoodImageAnalysisService` / `FoodImageAnalysisService`, `IFoodImageAnalyzer` / `GeminiFoodImageAnalyzer` / `FakeFoodImageAnalyzer`, `AiRateLimiter`, `GeminiOptions`, `AppOptions`, `UserClock`, `FormScroll`, `CapacityQueries`, `ExpiryRules`, `FoodDisplay`, `UserClaims`, `UploadPaths`, `LocalUrls`, `NpgsqlConnectionStrings`, `FoodListState`, `FoodSortPreference` |
+| `Services` | `InventoryService`, `CapacityService`, `UserAdminService`, `IImageStorage` / `LocalImageStorage` / `R2ImageStorage`, `ImageNormalizer`, `IFoodImageAnalysisService` / `FoodImageAnalysisService`, `IFoodImageAnalyzer` / `OpenRouterFoodImageAnalyzer` / `FakeFoodImageAnalyzer`, `AiRateLimiter`, `OpenRouterOptions`, `AppOptions`, `UserClock`, `FormScroll`, `CapacityQueries`, `ExpiryRules`, `FoodDisplay`, `UserClaims`, `UploadPaths`, `LocalUrls`, `NpgsqlConnectionStrings`, `FoodListState`, `FoodSortPreference` |
 | `Services/Models` | Forms, filters, `FoodSort`, DTOs, `OperationResult`, `FoodImageAnalysisResult` |
 | `Data` | `AppDbContext` (`IDataProtectionKeyContext`), `DbSeeder`, `StartupBootstrap`, `SeedOptions`, entities, enums, migrations |
 | `Dockerfile` / `.dockerignore` | Render / local production image; publishes the root `FridgeManager.csproj` only. Not the Heroku runtime path. |
@@ -102,7 +102,7 @@ Expected rule violations never throw. They return `OperationResult` / `Operation
 | `wwwroot/uploads` | Local-provider photos (`food-images/yyyy/MM/…`), gitignored; runtime files served with `UseStaticFiles` |
 | `tests/FridgeManager.Tests` | xUnit + EF Core SQLite `:memory:` |
 
-`deploy/heroku` uses the official `heroku/dotnet` buildpack on `heroku-24`, not the Dockerfile. Heroku Postgres supplies `DATABASE_URL`; R2 and Gemini stay the same providers. Startup still runs `MigrateAsync` then `StartupBootstrap`. The production formation is exactly one web dyno.
+`deploy/heroku` uses the official `heroku/dotnet` buildpack on `heroku-24`, not the Dockerfile. Heroku Postgres supplies `DATABASE_URL`; R2 and OpenRouter stay the same providers. Startup still runs `MigrateAsync` then `StartupBootstrap`. The production formation is exactly one web dyno.
 
 ## Guards (SPEC §6.3)
 
@@ -178,15 +178,15 @@ Logout and Identity `ReturnUrl` values go through `LocalUrls.Sanitize` so only s
 
 Available on `/food/new` only. It fills the existing form; it never creates a `FoodItem`.
 
-`FoodForm` reuses the bytes it already buffered for the preview. Selecting a file does not call Gemini. The Analyze button and disclosure render only when `Gemini:Enabled` is true and a photo is pending. Clicking the labelled button after reading the disclosure is consent; there is no extra checkbox. Analyze and Save share one in-flight gate, flush a render before ImageSharp / Gemini, and ignore a second click already queued on the circuit.
+`FoodForm` reuses the bytes it already buffered for the preview. Selecting a file does not call OpenRouter. The Analyze button and disclosure render only when `OpenRouter:Enabled` is true and a photo is pending. Clicking the labelled button after reading the disclosure is consent; there is no extra checkbox. Analyze and Save share one in-flight gate, flush a render before ImageSharp / OpenRouter, and ignore a second click already queued on the circuit.
 
-`GeminiOptions` binds `Gemini__Enabled` (default false), `Gemini__ApiKey`, `Gemini__Model` (`gemini-3.5-flash-lite`), `Gemini__TimeoutSeconds` (45), `Gemini__MaxRequestsPerUserPerHour` (20). When Enabled is true, `ApiKey` is required (`ValidateOnStart`). See [ADR-007](adr/007-gemini-extraction-profile.md). `GeminiFoodImageAnalyzer` uses a named `HttpClient` (`Timeout = TimeoutSeconds`) against `https://generativelanguage.googleapis.com/v1beta/models/{Model}:generateContent` with header `x-goog-api-key`. No Gemini SDK. Opening `/food/new` fires a tiny text-only generateContent warmup (not rate-limited) so the user's later photo request is less likely to pay that cold-start wait. The request sends the processed WebP as `inlineData` plus the §8.9 instruction (sizeUnits explained as palm-wrap / one-hand lift / two-hand lift), with `generationConfig.responseMimeType` / `responseSchema` and `thinkingConfig.thinkingLevel = minimal`. HTTP 503 is retried once after 400 ms. Failures return a user-facing message (timeout, temporary unavailability, quota, or the §8.13 sentence) and are logged at warning with HTTP status, `finishReason`, and a short body preview — never the API key or image bytes. A successful parse logs the mapped fields at Information. A cancelled circuit token is rethrown.
+`OpenRouterOptions` binds `OpenRouter__Enabled` (default false), `OpenRouter__ApiKey`, `OpenRouter__Model` (`openai/gpt-4o-mini`), `OpenRouter__BaseUrl` (`https://openrouter.ai/api/v1`), `OpenRouter__TimeoutSeconds` (45), `OpenRouter__MaxRequestsPerUserPerHour` (20). When Enabled is true, `ApiKey` is required (`ValidateOnStart`). See [ADR-008](adr/008-openrouter-openai-sdk.md). `OpenRouterFoodImageAnalyzer` uses the official OpenAI .NET `ChatClient` pointed at OpenRouter (`Authorization: Bearer`). Opening `/food/new` fires a tiny text-only chat completion warmup (not rate-limited) so the user's later photo request is less likely to pay that cold-start wait. The request sends the processed WebP as a chat image part plus the §8.9 instruction (sizeUnits explained as palm-wrap / one-hand lift / two-hand lift), with `response_format.json_schema` and OpenRouter `reasoning.effort` set to `none`. HTTP 503 is retried once after 400 ms. Failures return a user-facing message (timeout, temporary unavailability, quota, or the §8.13 sentence) and are logged at warning with HTTP status, `finishReason`, and a short body preview — never the API key or image bytes. A successful parse logs the mapped fields at Information. A cancelled circuit token is rethrown.
 
 `FoodImageAnalysisResult.ApplyTo` fills non-null `Name`, `Category`, `ExpirationDate`, `SizeUnits`, and `Note` only when `FoodForm` has not marked that control as user-entered. Touched fields are passed in and left alone (no AI marker). Untouched create-form defaults can still be filled. Those applied controls get an `fm-tag` "AI" and `.is-ai` border, cleared when the user edits that control. `warnings` is analysis-only (no food found, unreadable date) and appears once in an `fm-alert-info`; packaging cautions belong in `Note`. Owner, shelf, sharing, status, and position note stay user-controlled. Submit is still `InventoryService.CreateItemAsync`.
 
 Card, detail, and the form preview fall back to the category plate if a stored or preview URL fails to load (`@onerror`). The form preview is a compact 800 px WebP data URL so a long AI render does not keep a multi-megabyte `data:` URL in the circuit.
 
-`docker compose` keeps `Gemini__Enabled=false` (offline demo). Production Blueprint sets Enabled true; `Gemini__ApiKey` is `sync: false`.
+`docker compose` keeps `OpenRouter__Enabled=false` (offline demo). Production Blueprint sets Enabled true; `OpenRouter__ApiKey` is `sync: false`.
 
 ## DTOs
 
@@ -195,7 +195,7 @@ Card, detail, and the form preview fall back to the category plate if a stored o
 - `ShelfUsageDto` / `UserUsageDto` — live capacity and allowance panels.
 - `DashboardStats` — assembled in `CapacityService.GetDashboardStatsAsync` (shelves with filtered-include of Active items + active users). Empty shelves and members with zero items still appear. Expiring, expired, shared, and utilisation figures use that same Active set.
 - `AdminUserDto` — admin table row: username, email, quota, active count, status, admin flag. `GetUsersAsync` returns this instead of `ApplicationUser` so password hashes never reach the UI.
-- `FoodImageAnalysisResult` — Gemini / fake analyzer output (`Name`, `Category`, `ExpirationDate`, `SizeUnits`, `Note`, `Warnings`) plus `ApplyTo` for the create form (skips user-entered fields).
+- `FoodImageAnalysisResult` — OpenRouter / fake analyzer output (`Name`, `Category`, `ExpirationDate`, `SizeUnits`, `Note`, `Warnings`) plus `ApplyTo` for the create form (skips user-entered fields).
 
 ## Errors
 
@@ -229,22 +229,22 @@ Dashboard shelf remaining is the `FridgeElevation` chip row (chip flex grows wit
 
 `SqliteDbFactory` holds one open `Data Source=:memory:` connection and calls `EnsureCreated` once. Each inventory/capacity test seeds a small fridge (Shelf A at capacity 5, Alice at quota 2) so the guards are demonstrable without the production seeder.
 
-`UserAdminServiceTests` and `StartupBootstrapTests` build a real `UserManager` / `RoleManager` on that factory. Inventory tests inject `FakeImageStorage`. `SaveImageTests` uses `LocalImageStorage` plus a temp `IWebHostEnvironment.WebRootPath` and real tiny JPEG/PNG/WebP bytes from ImageSharp. `ImageNormalizerTests` cover EXIF strip, orientation, 2000 px cap, an explicit 1600 px AI cap, and no upscale. `UploadPaths`, `NpgsqlConnectionStrings`, `FoodDisplay`, and `UserClock.Resolve` are tested as pure helpers. AI tests inject `FakeFoodImageAnalyzer` / a recording analyzer / a stub `HttpMessageHandler`; they never call live Gemini. `AiRateLimiterTests` use a test `TimeProvider`. `AiSuggestionsTests` send an AI-filled `FoodItemForm` through `CreateItemAsync` / `UpdateItemAsync` so quota, capacity, and authorization still apply. `RegistrationDisabledTests` reads the Account Register sources and nav/login markup so public registration cannot come back without a failing test.
+`UserAdminServiceTests` and `StartupBootstrapTests` build a real `UserManager` / `RoleManager` on that factory. Inventory tests inject `FakeImageStorage`. `SaveImageTests` uses `LocalImageStorage` plus a temp `IWebHostEnvironment.WebRootPath` and real tiny JPEG/PNG/WebP bytes from ImageSharp. `ImageNormalizerTests` cover EXIF strip, orientation, 2000 px cap, an explicit 1600 px AI cap, and no upscale. `UploadPaths`, `NpgsqlConnectionStrings`, `FoodDisplay`, and `UserClock.Resolve` are tested as pure helpers. AI tests inject `FakeFoodImageAnalyzer` / a recording analyzer / a stub `HttpMessageHandler`; they never call live OpenRouter. `AiRateLimiterTests` use a test `TimeProvider`. `AiSuggestionsTests` send an AI-filled `FoodItemForm` through `CreateItemAsync` / `UpdateItemAsync` so quota, capacity, and authorization still apply. `RegistrationDisabledTests` reads the Account Register sources and nav/login markup so public registration cannot come back without a failing test.
 
 The SPEC §11 list plus SPEC_EXTENSIONS §7.1 is the minimum. Add a test in `tests/FridgeManager.Tests` whenever a service rule or filter changes.
 
-GitHub Actions ([`.github/workflows/ci.yml`](../.github/workflows/ci.yml)) runs `dotnet restore`, `dotnet build -c Release`, `dotnet test -c Release`, and `docker build .` on every push and pull request to `main` or `deploy/heroku`. The workflow has no secrets and does not start Postgres or call R2 / Gemini.
+GitHub Actions ([`.github/workflows/ci.yml`](../.github/workflows/ci.yml)) runs `dotnet restore`, `dotnet build -c Release`, `dotnet test -c Release`, and `docker build .` on every push and pull request to `main` or `deploy/heroku`. The workflow has no secrets and does not start Postgres or call R2 / OpenRouter.
 
 ### Phase 9 verification
 
 - **Registration (§6.1).** `/Account/Register` and `/Account/RegisterConfirmation` only call `RedirectTo("Account/Login")`. They do not create a user or show a confirmation link. Login and the main nav have no register link. Account pages stay static SSR (`[ExcludeFromInteractiveRouting]`). `Components/Account/**` was not changed in this phase.
 - **Authorization (§6.2).** `UpdateItemAsync`, `ChangeStatusAsync`, every `UserAdminService` mutation, and `FoodImageAnalysisService.AnalyzeAsync` still decide in the service. Existing inventory, admin, AI suggestion, and analysis tests are the evidence.
 - **Upload (§6.6).** `SaveImageAsync` requires a signed-in caller, accepts only JPEG/PNG/WebP, matches magic bytes to the claimed type, caps the stream at 5 MB before buffering, discards the client filename, and stores a server-generated `food-images/{yyyy}/{MM}/{guid:N}.webp` key. `/uploads` stays authenticated with `nosniff`.
-- **Secrets (§6.4).** Working tree and git history were grepped for `ApiKey`, `SecretAccessKey`, `Password=`, and `postgres://`. Hits are placeholders, option property names, compose throw-away passwords (`compose-dev-password`, `devpassword`), and test fakes (`test-key`, `p@ss`). No production R2, Gemini, or Render credential was found. `.gitignore` now ignores `.env*` and `appsettings.*.local.json`.
+- **Secrets (§6.4).** Working tree and git history were grepped for `ApiKey`, `SecretAccessKey`, `Password=`, and `postgres://`. Hits are placeholders, option property names, compose throw-away passwords (`compose-dev-password`, `devpassword`), and test fakes (`test-key`, `p@ss`). No production R2, OpenRouter, or Render credential was found. `.gitignore` now ignores `.env*` and `appsettings.*.local.json`.
 
 ## Deviations from the spec
 
-Accepted product decisions now live in the spec and in [adr/](adr/). Gemini model, timeout, Note, warmup, and grab-test size copy are [ADR-007](adr/007-gemini-extraction-profile.md). What remains is infrastructure how-to, not a product-rule change:
+Accepted product decisions now live in the spec and in [adr/](adr/). OpenRouter + OpenAI SDK transport is [ADR-008](adr/008-openrouter-openai-sdk.md). Timeout, Note, warmup, and grab-test size copy remain from [ADR-007](adr/007-gemini-extraction-profile.md). What remains is infrastructure how-to, not a product-rule change:
 
 - List Discard eligibility (`Active` ∧ expired ∧ `CanModify`) is computed in `FoodList`, not in a service. `ChangeStatusAsync` still enforces owner/admin; the expired-only restriction is card UX (SPEC §8.2).
 - Identity template remnants stay reachable: passkey on Login, 2FA pages, Forgot password. External login signs in an already-linked account and never creates one.
@@ -258,19 +258,19 @@ Accepted product decisions now live in the spec and in [adr/](adr/). Gemini mode
 - Image processing uses **SixLabors.ImageSharp 3.1.12** (Apache-2.0). 4.x requires a Six Labors license key and fails `dotnet publish -c Release` (Docker / CI) without one. The APIs this app needs (`AutoOrient`, metadata strip, `WebpEncoder`) are unchanged.
 - Data Protection keys are stored in PostgreSQL without an XML encryptor (ASP.NET logs a warning). Acceptable for this demo; do not add a certificate solely to silence it.
 - `DbSeeder.SeedDemoDataAsync` may delete leftover `admin@example.com` when that account owns no food items, and may shorten email-shaped usernames to the local-part. That is seed hygiene (SPEC §6.5). It is not a product delete path.
-- `FakeFoodImageAnalyzer` returns a fixed sample (`Greek Yogurt` / `Snack` / no date / size 1) when `Gemini:Enabled` is false. The create form does not render Analyze in that case, so the fake is for tests and for any stray service call.
+- `FakeFoodImageAnalyzer` returns a fixed sample (`Greek Yogurt` / `Snack` / no date / size 1) when `OpenRouter:Enabled` is false. The create form does not render Analyze in that case, so the fake is for tests and for any stray service call.
 
 ## Known limitations (do not “fix”)
 
 Do not “fix”: capacity check race, single Interactive Server instance (no Redis / sticky-session scale-out), no audit trail, approximate size units, disable delay up to 30 minutes, Identity template remnants.
 
-SPEC_EXTENSIONS §0.1 overrides the former local-only uploads, orphan files on replacement, missing-file 404, `/uploads/{guid}.ext` path shape, local-demo-only items, and “no AI”. Those are implemented: Development and docker compose use `LocalImageStorage`; production uses R2; `/food/new` can autofill from Gemini when enabled.
+SPEC_EXTENSIONS §0.1 overrides the former local-only uploads, orphan files on replacement, missing-file 404, `/uploads/{guid}.ext` path shape, local-demo-only items, and “no AI”. Those are implemented: Development and docker compose use `LocalImageStorage`; production uses R2; `/food/new` can autofill via OpenRouter when enabled.
 
 Also accepted for the extension (SPEC_EXTENSIONS §9):
 
 - One application instance; horizontal scaling is not implemented.
 - Free Render web services spin down after inactivity and cold-start slowly; free Render PostgreSQL expires after 30 days.
 - R2 demo images are publicly readable by URL.
-- Gemini is an external dependency; availability and quota may temporarily disable autofill.
+- OpenRouter is an external dependency; availability and quota may temporarily disable autofill.
 - AI recognition may be inaccurate and cannot invent expiration dates unless a date is visibly printed.
 - No status audit history; no expiry notifications; one uploaded image per food item.

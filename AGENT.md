@@ -23,7 +23,7 @@ placement, per-user item quotas and per-shelf capacity.
 | Auth | ASP.NET Core Identity with roles (`Admin`, `User`) |
 | Tests | xUnit, EF Core SQLite `:memory:` (`tests/FridgeManager.Tests`) |
 | Styling | `wwwroot/css/theme.css` (`fm-*` primitives); Bootstrap only for residual template widgets |
-| Deployment | `deploy/heroku`: official `heroku/dotnet` buildpack, exactly 1 web dyno, Heroku Postgres, Cloudflare R2 via `IImageStorage`, Gemini REST (no SDK). `Dockerfile` remains the Render / local production-container fallback. |
+| Deployment | `deploy/heroku`: official `heroku/dotnet` buildpack, exactly 1 web dyno, Heroku Postgres, Cloudflare R2 via `IImageStorage`, OpenRouter via the official OpenAI .NET SDK. `Dockerfile` remains the Render / local production-container fallback. |
 
 ## Build, run, test
 
@@ -107,9 +107,9 @@ Architecture rules:
   SignalR, Kubernetes, message queues, or extra microservices.
 - Image processing: SixLabors.ImageSharp **3.1.12** only (4.x needs a license
   key and breaks Release publish). Do not add a second image library or a
-  Gemini SDK.
+  second AI SDK. Use the official OpenAI package against OpenRouter.
 - After changing `Program.cs` or `Components/App.razor`, re-check SPEC §3.
-- Configuration sections are `Seed`, `ImageStorage`, `R2`, and `Gemini`. Secrets
+- Configuration sections are `Seed`, `ImageStorage`, `R2`, and `OpenRouter`. Secrets
   live in `dotnet user-secrets` (local), Heroku config vars (`deploy/heroku`),
   or Render environment variables (fallback) — never in git.
 - At the end of every extension phase, update `DESIGN.md` (layers, folders,
@@ -127,7 +127,7 @@ Architecture rules:
 | `Components/Pages` | `Home.razor` (dashboard), `FoodList`, `FoodDetail`, `FoodForm` (+ `.razor.cs`), `AdminUsers` |
 | `Components/Shared` | `FoodCard`, `FoodFilterBar`, `FridgeElevation`, `ErrorFallback`, `PasswordRevealButton` |
 | `Components/Account` | Template Identity pages — see convention 2; do not change in the extension |
-| `Services` | `InventoryService`, `CapacityService`, `UserAdminService`, `IImageStorage`, `LocalImageStorage`, `R2ImageStorage`, `ImageNormalizer`, `IFoodImageAnalysisService`, `FoodImageAnalysisService`, `IFoodImageAnalyzer`, `GeminiFoodImageAnalyzer`, `FakeFoodImageAnalyzer`, `AiRateLimiter`, `GeminiOptions`, `CapacityQueries`, `ExpiryRules`, `FoodDisplay`, `UserClaims`, `UploadPaths`, `LocalUrls`, `NpgsqlConnectionStrings`, `FoodListState`, `FoodSortPreference` |
+| `Services` | `InventoryService`, `CapacityService`, `UserAdminService`, `IImageStorage`, `LocalImageStorage`, `R2ImageStorage`, `ImageNormalizer`, `IFoodImageAnalysisService`, `FoodImageAnalysisService`, `IFoodImageAnalyzer`, `OpenRouterFoodImageAnalyzer`, `FakeFoodImageAnalyzer`, `AiRateLimiter`, `OpenRouterOptions`, `CapacityQueries`, `ExpiryRules`, `FoodDisplay`, `UserClaims`, `UploadPaths`, `LocalUrls`, `NpgsqlConnectionStrings`, `FoodListState`, `FoodSortPreference` |
 | `Services/Models` | `FoodItemForm`, `FoodFilter`, `FoodSort`, `OperationResult`, `DashboardStats`, `FoodImageAnalysisResult`, `*Dto` |
 | `Data` | `AppDbContext` (`IDataProtectionKeyContext`), `DbSeeder`, `StartupBootstrap`, `SeedOptions`, `Entities/`, `Enums/`, `Migrations/` |
 | `wwwroot/css/theme.css` | Design tokens and `fm-*` classes from the mockup |

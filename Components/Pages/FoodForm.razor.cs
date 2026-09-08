@@ -25,7 +25,7 @@ public partial class FoodForm : IDisposable, IAsyncDisposable
     private IFoodImageAnalysisService Analysis { get; set; } = default!;
 
     [Inject]
-    private IOptions<GeminiOptions> Gemini { get; set; } = default!;
+    private IOptions<OpenRouterOptions> OpenRouter { get; set; } = default!;
 
     [Inject]
     private NavigationManager Navigation { get; set; } = default!;
@@ -101,7 +101,7 @@ public partial class FoodForm : IDisposable, IAsyncDisposable
     private string ExpiryInputClass
         => IsAi(nameof(FoodItemForm.ExpirationDate)) ? "fm-input fig is-ai" : "fm-input fig";
 
-    private bool ShowAi => !IsEdit && Gemini.Value.Enabled && _pendingBytes is not null;
+    private bool ShowAi => !IsEdit && OpenRouter.Value.Enabled && _pendingBytes is not null;
 
     private bool FormBusy => _saving || _analyzing || _photoBusy;
 
@@ -211,7 +211,7 @@ public partial class FoodForm : IDisposable, IAsyncDisposable
             Form.ExpirationDate = Clock.Today;
             Form.SizeUnits = 1;
             Form.ShelfId = _shelves.FirstOrDefault()?.ShelfId ?? 0;
-            if (Gemini.Value.Enabled)
+            if (OpenRouter.Value.Enabled)
             {
                 _ = Analysis.WarmupAsync();
             }

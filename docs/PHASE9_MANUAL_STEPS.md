@@ -2,7 +2,7 @@
 
 The code is complete: public registration stays disabled, authorization and upload checks stay in services, `.gitignore` ignores local secret files, and GitHub Actions runs restore / build / test / `docker build` with no production credentials.
 
-Do not commit production database passwords, R2 keys, Gemini keys, or seed admin passwords to git.
+Do not commit production database passwords, R2 keys, OpenRouter keys, or seed admin passwords to git.
 
 ---
 
@@ -14,7 +14,7 @@ After the Phase 9 commit is on `main` (or on a pull request into `main`):
 2. If this is the first workflow, GitHub may ask you to enable Actions. Enable them for this repository.
 3. Open the **CI** workflow. The latest run on `main` (and on the PR, if you used one) must be green.
 4. The job must have run, in order: `dotnet restore`, `dotnet build -c Release`, `dotnet test -c Release`, `docker build .`.
-5. The job must **not** have repository secrets for R2, Gemini, or a production database. None are required.
+5. The job must **not** have repository secrets for R2, OpenRouter, or a production database. None are required.
 
 If CI is red: fix the failure on the branch; do not skip the workflow.
 
@@ -28,13 +28,13 @@ What that found (expected, keep):
 
 | Hit | Why it is safe |
 |---|---|
-| `Gemini__ApiKey` / `R2__SecretAccessKey` names in docs, `render.yaml` (`sync: false`), and option classes | Names only; no values |
+| `OpenRouter__ApiKey` / `R2__SecretAccessKey` names in docs, `render.yaml` (`sync: false`), and option classes | Names only; no values |
 | `Password=devpassword` in README / AGENT.md | Local Docker Postgres example |
 | `Password=compose-dev-password` in `docker-compose.yml` | Throw-away offline demo, as specified |
 | `Seed__AdminPassword: Passw0rd!` in compose | Same demo password as Development seeds |
 | Test fakes (`test-key`, `postgres://u:p@localhost/fridge`) | Not production |
 
-What it did **not** find: a real Gemini API key, a real R2 secret, or a Render `postgresql://` URL with a live password.
+What it did **not** find: a real OpenRouter API key, a real R2 secret, or a Render `postgresql://` URL with a live password.
 
 If you later discover a real secret in history:
 
@@ -83,12 +83,12 @@ On `/food/new` or edit, while signed in:
 - [ ] A broken URL does **not** show a stack trace or detailed exception.
 - [ ] After login, DevTools → Application → cookies: the Identity cookie has **Secure**.
 - [ ] DevTools → Network: the Blazor circuit is `wss://` (not `ws://`). No redirect loop on the first visit.
-- [ ] Browser DevTools never shows `Gemini__ApiKey`, R2 secrets, or a direct call to `generativelanguage.googleapis.com`.
+- [ ] Browser DevTools never shows `OpenRouter__ApiKey`, R2 secrets, or a direct call to `openrouter.ai`.
 
 ---
 
 ## 4. After you are done
 
 - [ ] Seed variables (`Seed__Admin*`) may be removed from Render once the bootstrap Admin exists.
-- [ ] `docker compose up --build` locally still works (offline demo; `Gemini__Enabled=false`).
+- [ ] `docker compose up --build` locally still works (offline demo; `OpenRouter__Enabled=false`).
 - [ ] Do not start Phase 10 (Testcontainers, R2 client tests, Playwright) unless you explicitly want that optional work.

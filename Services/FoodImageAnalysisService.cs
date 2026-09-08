@@ -8,7 +8,7 @@ namespace FridgeManager.Services;
 public sealed class FoodImageAnalysisService(
     IFoodImageAnalyzer analyzer,
     AiRateLimiter limiter,
-    IOptions<GeminiOptions> options) : IFoodImageAnalysisService
+    IOptions<OpenRouterOptions> options) : IFoodImageAnalysisService
 {
     public const string SignInMessage = "Sign in to use AI autofill.";
     public const string UnavailableMessage = "AI autofill is not available.";
@@ -32,13 +32,13 @@ public sealed class FoodImageAnalysisService(
             return OperationResult<FoodImageAnalysisResult>.Fail(SignInMessage);
         }
 
-        var gemini = options.Value;
-        if (!gemini.Enabled)
+        var ai = options.Value;
+        if (!ai.Enabled)
         {
             return OperationResult<FoodImageAnalysisResult>.Fail(UnavailableMessage);
         }
 
-        var limit = gemini.MaxRequestsPerUserPerHour;
+        var limit = ai.MaxRequestsPerUserPerHour;
         if (!limiter.TryAcquire(userId, limit, TimeSpan.FromHours(1)))
         {
             return OperationResult<FoodImageAnalysisResult>.Fail(RateLimitMessage);
@@ -134,9 +134,9 @@ public sealed class FoodImageAnalysisService(
     }
 
     private static string UserFacingError(string? error)
-        => error is GeminiFoodImageAnalyzer.TimeoutMessage
-            or GeminiFoodImageAnalyzer.UnavailableMessage
-            or GeminiFoodImageAnalyzer.QuotaMessage
+        => error is OpenRouterFoodImageAnalyzer.TimeoutMessage
+            or OpenRouterFoodImageAnalyzer.UnavailableMessage
+            or OpenRouterFoodImageAnalyzer.QuotaMessage
             ? error
             : FailureMessage;
 }

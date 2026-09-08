@@ -179,7 +179,7 @@ public sealed class FoodImageAnalysisServiceTests
             Service = new FoodImageAnalysisService(
                 analyzer,
                 new AiRateLimiter(),
-                Options.Create(new GeminiOptions
+                Options.Create(new OpenRouterOptions
                 {
                     Enabled = enabled,
                     MaxRequestsPerUserPerHour = 20

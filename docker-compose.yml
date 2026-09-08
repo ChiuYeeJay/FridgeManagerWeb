@@ -26,7 +26,7 @@ services:
       ASPNETCORE_ENVIRONMENT: Production
       ConnectionStrings__DefaultConnection: Host=db;Database=fridge;Username=postgres;Password=compose-dev-password
       ImageStorage__Provider: Local
-      Gemini__Enabled: "false"
+      OpenRouter__Enabled: "false"
       Seed__AdminUserName: admin
       Seed__AdminEmail: admin@fridge.local
       Seed__AdminPassword: Passw0rd!

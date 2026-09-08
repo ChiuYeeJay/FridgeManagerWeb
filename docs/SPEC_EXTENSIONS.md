@@ -33,7 +33,7 @@ This document explicitly overrides the following items from `SPEC.md` §13 and t
 | Missing-file 404 at a safe `ImagePath` | §4.4 — unresolvable keys fall back to the category plate |
 | `/uploads/{guid}.ext` stored-path shape | §4.3 — provider-neutral storage key |
 | Local demo only | §2 — Docker image and public Render deployment |
-| No AI features | §8 — Gemini photo autofill |
+| No AI features | §8 — OpenRouter photo autofill |
 
 Everything else in those lists (capacity race, single Interactive Server instance, no audit trail, approximate size units, disable delay, Identity template remnants) remains a known limitation. Do not "fix" it.
 
@@ -58,7 +58,7 @@ Transform the completed project from a local demo into a deployable portfolio ap
 2. Render hosting
 3. Render-managed PostgreSQL
 4. Cloudflare R2 image storage
-5. Gemini-based AI photo autofill with explicit user disclosure
+5. OpenRouter-based AI photo autofill with explicit user disclosure
 6. Responsive UI
 7. Production-oriented security hardening and CI
 8. Optional deeper test infrastructure (Phase 10)
@@ -104,8 +104,8 @@ Browser ═══ SignalR ═══▶ ┌────────┴───�
                                Browser
 
                          ┌──────────────────┐
-                         │ Google Gemini    │
-                         │ multimodal API   │
+                         │ OpenRouter       │
+                         │ (OpenAI-compat.) │
                          └────────▲─────────┘
                                   │
                                   │ processed image (server only)
@@ -183,7 +183,7 @@ PostgreSQL container
 FridgeManager production container
 ```
 
-Add a local `docker-compose.yml` for this purpose. It runs `ASPNETCORE_ENVIRONMENT=Production` with the local Postgres, `ImageStorage__Provider=Local`, `Gemini__Enabled=false`, and the bootstrap variables from §2.6 with throw-away values.
+Add a local `docker-compose.yml` for this purpose. It runs `ASPNETCORE_ENVIRONMENT=Production` with the local Postgres, `ImageStorage__Provider=Local`, `OpenRouter__Enabled=false`, and the bootstrap variables from §2.6 with throw-away values.
 
 It must not contain real production credentials. It is also the offline fallback for the interview demo, so it must keep working after every later phase.
 
@@ -213,11 +213,11 @@ R2__SecretAccessKey=...
 R2__BucketName=...
 R2__PublicBaseUrl=...
 
-Gemini__Enabled=true
-Gemini__ApiKey=...
-Gemini__Model=gemini-3.5-flash-lite
-Gemini__TimeoutSeconds=45
-Gemini__MaxRequestsPerUserPerHour=20
+OpenRouter__Enabled=true
+OpenRouter__ApiKey=...
+OpenRouter__Model=openai/gpt-4o-mini
+OpenRouter__TimeoutSeconds=45
+OpenRouter__MaxRequestsPerUserPerHour=20
 
 Seed__AdminUserName=...
 Seed__AdminEmail=...
@@ -227,7 +227,7 @@ Seed__DemoData=true
 
 Render must be told to use `/health` (§2.4) as the health-check path.
 
-Do not expose database, R2, Gemini, or seed credentials to the browser.
+Do not expose database, R2, OpenRouter, or seed credentials to the browser.
 
 Free-tier note (document in the README, do not work around in code): free Render web services spin down after about 15 minutes without traffic and take up to a minute to cold-start; free Render PostgreSQL databases expire 30 days after creation.
 
@@ -576,13 +576,13 @@ Verify again that `UpdateItemAsync`, `ChangeStatusAsync`, the admin user operati
 
 Production must not expose detailed exception information to users. Development may retain `DetailedErrors = true`; Production must have it off on both the host and the Interactive Server circuit (verify `appsettings.json` does not enable it). Production uses the existing `ErrorFallback` / `/Error` pages with generic copy.
 
-Unexpected exceptions must still be logged server-side. Do not log passwords, authentication cookies, database passwords, R2 secrets, Gemini API keys, seed passwords, or uploaded image bytes.
+Unexpected exceptions must still be logged server-side. Do not log passwords, authentication cookies, database passwords, R2 secrets, OpenRouter API keys, seed passwords, or uploaded image bytes.
 
 ---
 
 ## 6.4 Secrets
 
-The following must never be committed: production database credentials, R2 credentials, Gemini API key, seed admin password, Data Protection secret material.
+The following must never be committed: production database credentials, R2 credentials, OpenRouter API key, seed admin password, Data Protection secret material.
 
 Use `dotnet user-secrets` for local development secrets and Render environment variables for production secrets.
 
@@ -691,7 +691,7 @@ A real-R2 smoke test may be performed manually before production deployment. Nev
 
 ## 7.4 AI Tests (required as part of 7.1)
 
-Default automated tests must never call the live Gemini API. Use `FakeFoodImageAnalyzer`. A manual Gemini smoke test is allowed when a developer has explicitly supplied an API key via user-secrets. No Gemini API key is required to run the normal test suite.
+Default automated tests must never call the live OpenRouter API. Use `FakeFoodImageAnalyzer`. A manual OpenRouter smoke test is allowed when a developer has explicitly supplied an API key via user-secrets. No OpenRouter API key is required to run the normal test suite.
 
 ---
 
@@ -716,7 +716,7 @@ docker build
 
 The pipeline must fail if the build fails, any required test fails, or the production Docker image fails to build.
 
-CI must not require a production database, R2 credentials, or a Gemini API key. Phase 10 tests, if added later, must run in the same workflow without credentials (Testcontainers, mocks, fake analyzer).
+CI must not require a production database, R2 credentials, or an OpenRouter API key. Phase 10 tests, if added later, must run in the same workflow without credentials (Testcontainers, mocks, fake analyzer).
 
 ---
 
@@ -750,9 +750,9 @@ normal form submission
 existing InventoryService validation
 ```
 
-The AI **analysis** must be explicitly initiated by the user. Selecting a file alone must not send the photo to Gemini. `FoodForm` reuses the bytes it already buffered for the preview; do not re-read the `IBrowserFile`.
+The AI **analysis** must be explicitly initiated by the user. Selecting a file alone must not send the photo to OpenRouter. `FoodForm` reuses the bytes it already buffered for the preview; do not re-read the `IBrowserFile`.
 
-When `Gemini__Enabled=true`, opening `/food/new` may fire a tiny **text-only** `generateContent` warmup (no image, no user identity) so the later photo request is less likely to pay a cold-start wait. That warmup is not the analysis, must not send the photo, and must not consume the per-user hourly analysis quota (§8.11).
+When `OpenRouter__Enabled=true`, opening `/food/new` may fire a tiny **text-only** chat completion warmup (no image, no user identity) so the later photo request is less likely to pay a cold-start wait. That warmup is not the analysis, must not send the photo, and must not consume the per-user hourly analysis quota (§8.11).
 
 ---
 
@@ -761,14 +761,14 @@ When `Gemini__Enabled=true`, opening `/food/new` may fire a tiny **text-only** `
 Near the AI analysis action, display:
 
 ```text
-AI Autofill sends a processed copy of this photo to Google Gemini for
+AI Autofill sends a processed copy of this photo to OpenRouter for
 analysis. Do not use sensitive or confidential images. Always review
 AI-generated suggestions before saving.
 ```
 
 The disclosure must be visible before the user triggers analysis. Clicking the clearly labelled button after seeing the disclosure is sufficient consent; do not add a mandatory checkbox.
 
-When `Gemini__Enabled=false` the Analyze button and disclosure are not rendered at all.
+When `OpenRouter__Enabled=false` the Analyze button and disclosure are not rendered at all.
 
 ---
 
@@ -806,15 +806,15 @@ public interface IFoodImageAnalyzer
 `FoodImageAnalysisService` responsibilities, in order:
 
 1. `user` must carry a `NameIdentifier`; otherwise `Fail("Sign in to use AI autofill.")`
-2. `Gemini__Enabled` must be true; otherwise `Fail("AI autofill is not available.")`
+2. `OpenRouter__Enabled` must be true; otherwise `Fail("AI autofill is not available.")`
 3. per-user rate limit (§8.11); otherwise `Fail(...)` with the friendly limit message
 4. preprocess the image (§8.10) — reuse `ImageNormalizer` with a 1600 px cap
 5. call `IFoodImageAnalyzer`
 6. validate the result (§8.6); invalid fields are dropped to `null` with a warning, never passed through
 
-Implementations of `IFoodImageAnalyzer`: `GeminiFoodImageAnalyzer` (production) and `FakeFoodImageAnalyzer` (tests and `Gemini__Enabled=false` development, returns a fixed result). Neither implements authorization or rate limiting.
+Implementations of `IFoodImageAnalyzer`: `OpenRouterFoodImageAnalyzer` (production) and `FakeFoodImageAnalyzer` (tests and `OpenRouter__Enabled=false` development, returns a fixed result). Neither implements authorization or rate limiting.
 
-UI and domain services depend only on these interfaces. Do not spread Gemini-specific API calls throughout components.
+UI and domain services depend only on these interfaces. Do not spread OpenRouter- or OpenAI-specific API calls throughout components.
 
 ---
 
@@ -850,55 +850,46 @@ The AI must never set `Owner`, `Shelf`, `IsShared`, `Status`, `PositionNote`, pe
 
 ---
 
-## 8.7 Gemini Configuration
+## 8.7 OpenRouter Configuration
 
 ```text
-Gemini__Enabled                   bool, default false
-Gemini__ApiKey                    required when Enabled
-Gemini__Model                     default "gemini-3.5-flash-lite"
-Gemini__TimeoutSeconds            default 45
-Gemini__MaxRequestsPerUserPerHour default 20
+OpenRouter__Enabled                   bool, default false
+OpenRouter__ApiKey                    required when Enabled
+OpenRouter__Model                     default "openai/gpt-4o-mini"
+OpenRouter__BaseUrl                   default "https://openrouter.ai/api/v1"
+OpenRouter__TimeoutSeconds            default 45
+OpenRouter__MaxRequestsPerUserPerHour default 20
 ```
 
-Bind to a `GeminiOptions` **class** with setters (same pattern as `R2Options`) and these defaults so development runs with an empty `Gemini` section. Do not hard-code API keys, model names, or request limits anywhere else. Why Flash Lite and 45 s: [adr/007-gemini-extraction-profile.md](adr/007-gemini-extraction-profile.md).
+Bind to an `OpenRouterOptions` **class** with setters (same pattern as `R2Options`) and these defaults so development runs with an empty `OpenRouter` section. Do not hard-code API keys, model names, or request limits anywhere else. Transport choice: [adr/008-openrouter-openai-sdk.md](adr/008-openrouter-openai-sdk.md). Extraction profile (Note, grab-test, 45 s, warmup): [adr/007-gemini-extraction-profile.md](adr/007-gemini-extraction-profile.md).
 
 ---
 
-## 8.8 Gemini Request
+## 8.8 OpenRouter Request
 
-`GeminiFoodImageAnalyzer` uses a named `HttpClient` from `IHttpClientFactory` (`Timeout = Gemini__TimeoutSeconds`) and calls the Gemini REST endpoint directly:
+`OpenRouterFoodImageAnalyzer` uses the official OpenAI .NET SDK (`ChatClient` from the `OpenAI` package) with `OpenAIClientOptions.Endpoint` set to `OpenRouter__BaseUrl`. Authenticate with the OpenRouter key as a Bearer token. Do not call Google Gemini REST directly. Do not add a second AI SDK.
 
-```text
-POST https://generativelanguage.googleapis.com/v1beta/models/{Gemini__Model}:generateContent
-header: x-goog-api-key: {Gemini__ApiKey}
-```
-
-Do not add a Gemini SDK package.
-
-Request body: the processed image as an `inlineData` part (`mimeType: image/webp`, base64) plus the instruction text from §8.9, with `generationConfig`:
+The request is a chat completion: the §8.9 instruction as a system message, the processed WebP as an image part (`mimeType: image/webp`), `response_format` JSON schema, and OpenRouter reasoning disabled (`reasoning.effort = none`). The warmup uses the same reasoning-off flag.
 
 ```json
 {
-  "responseMimeType": "application/json",
-  "responseSchema": {
-    "type": "OBJECT",
-    "properties": {
-      "name":           { "type": "STRING",  "nullable": true },
-      "category":       { "type": "STRING",  "nullable": true, "enum": ["Drink","Snack","Meal","Ingredient","Other"] },
-      "expirationDate": { "type": "STRING",  "nullable": true, "description": "yyyy-MM-dd, only if visibly printed" },
-      "sizeUnits":      { "type": "INTEGER", "nullable": true },
-      "note":           { "type": "STRING",  "nullable": true },
-      "warnings":       { "type": "ARRAY",   "items": { "type": "STRING" } }
-    },
-    "required": ["name","category","expirationDate","sizeUnits","note","warnings"]
+  "type": "object",
+  "properties": {
+    "name":           { "type": ["string", "null"] },
+    "category":       { "type": ["string", "null"], "enum": ["Drink","Snack","Meal","Ingredient","Other", null] },
+    "expirationDate": { "type": ["string", "null"], "description": "yyyy-MM-dd, only if visibly printed" },
+    "sizeUnits":      { "type": ["integer", "null"] },
+    "note":           { "type": ["string", "null"] },
+    "warnings":       { "type": "array", "items": { "type": "string" } }
   },
-  "thinkingConfig": { "thinkingLevel": "minimal" }
+  "required": ["name","category","expirationDate","sizeUnits","note","warnings"],
+  "additionalProperties": false
 }
 ```
 
-Deserialize the first candidate's text part into a private DTO, then map to `FoodImageAnalysisResult`. The server must still validate the deserialized result (§8.6). Never trust model output merely because it matches JSON syntax.
+Deserialize the first text content part into a private DTO, then map to `FoodImageAnalysisResult`. The server must still validate the deserialized result (§8.6). Never trust model output merely because it matches JSON syntax.
 
-HTTP 503 is retried once after a short delay. Any other HTTP error, timeout, empty candidate, or JSON error returns `OperationResult.Fail(...)` with a §8.13 message and is logged at warning level without the API key or image bytes.
+HTTP 503 is retried once after a short delay. Disable the SDK retry policy so that single retry stays in our code. Any other HTTP error, timeout, empty candidate, or JSON error returns `OperationResult.Fail(...)` with a §8.13 message and is logged at warning level without the API key or image bytes.
 
 ---
 
@@ -939,7 +930,7 @@ Do not rely on free-form natural-language output.
 
 ---
 
-## 8.10 Image Sent to Gemini
+## 8.10 Image Sent to OpenRouter
 
 Do not send the untouched original file. Before analysis run the §4.5 normalizer with a **1600 px** long-edge cap (decode → orient → strip metadata → resize → WebP). This preprocessing is separate from the final image-storage operation; the stored image is normalized again at 2000 px on submit.
 
@@ -963,7 +954,7 @@ Do not attempt distributed rate limiting; the application runs as a single insta
 
 While an analysis is running: disable the Analyze button, show `Analyzing photo...`, and prevent duplicate requests from repeated clicks (a `bool _analyzing` flag set before the await). The same in-flight flag is required on **Save item** (`_saving`): a second submit that is already queued on the circuit must return immediately, and a successful save must leave the button disabled until navigation replaces the page.
 
-Interactive Server cannot paint a click until the SignalR round-trip returns. Buttons that start a long action therefore also carry `data-fm-busy-on-click` so `wwwroot/js/busy-click.js` can show the pending label immediately in the browser. That script only changes label and opacity; disabling the control is left to the component flag so the current click/submit still reaches the circuit. After setting a busy flag, `FoodForm` yields once so ImageSharp / Gemini work does not block that first render batch.
+Interactive Server cannot paint a click until the SignalR round-trip returns. Buttons that start a long action therefore also carry `data-fm-busy-on-click` so `wwwroot/js/busy-click.js` can show the pending label immediately in the browser. That script only changes label and opacity; disabling the control is left to the component flag so the current click/submit still reaches the circuit. After setting a busy flag, `FoodForm` yields once so ImageSharp / OpenRouter work does not block that first render batch.
 
 Pass the component's cancellation token; cancellation caused by navigation or a disconnected circuit must be caught and must not crash the circuit.
 
@@ -971,7 +962,7 @@ Pass the component's cancellation token; cancellation caused by navigation or a 
 
 ## 8.13 AI Failure Behaviour
 
-Gemini timeout, unavailability, quota exhaustion, invalid JSON, invalid structured response, uninterpretable image, and rate-limit rejection must not destroy or reset the user's form.
+OpenRouter timeout, unavailability, quota exhaustion, invalid JSON, invalid structured response, uninterpretable image, and rate-limit rejection must not destroy or reset the user's form.
 
 Show one of:
 
@@ -1022,19 +1013,19 @@ AI must never bypass this path.
 
 ## Architecture
 
-Document Render, Render PostgreSQL, Cloudflare R2, Gemini API, and Blazor Interactive Server, with the §1 diagram.
+Document Render, Render PostgreSQL, Cloudflare R2, OpenRouter, and Blazor Interactive Server, with the §1 diagram.
 
 ## Local Development
 
-Document database startup, `user-secrets`, local image storage, optional Gemini configuration (and the fake analyzer when disabled), how to run tests, and how to run the production image locally with `docker compose`.
+Document database startup, `user-secrets`, local image storage, optional OpenRouter configuration (and the fake analyzer when disabled), how to run tests, and how to run the production image locally with `docker compose`.
 
 ## Production Deployment
 
-Document Render service creation, Render PostgreSQL connection, every environment variable from §2.3, R2 bucket and public URL setup, Gemini configuration, the health-check path, migration behaviour, and the §2.6 bootstrap (first admin login, demo data switch, removing the seed variables afterwards). Never include real credentials.
+Document Render service creation, Render PostgreSQL connection, every environment variable from §2.3, R2 bucket and public URL setup, OpenRouter configuration, the health-check path, migration behaviour, and the §2.6 bootstrap (first admin login, demo data switch, removing the seed variables afterwards). Never include real credentials.
 
 ## AI Disclosure
 
-Document that AI analysis sends a processed image to Google Gemini; AI values are suggestions; users must verify results; the demo is not intended for sensitive or confidential images; provider terms should be reviewed before treating this as a production system.
+Document that AI analysis sends a processed image to OpenRouter; AI values are suggestions; users must verify results; the demo is not intended for sensitive or confidential images; provider terms should be reviewed before treating this as a production system.
 
 ## Known Limitations
 
@@ -1043,7 +1034,7 @@ At minimum document:
 1. Blazor Interactive Server runs as one application instance; horizontal scaling is not implemented.
 2. Free Render services spin down after inactivity and cold-start slowly; free Render PostgreSQL expires after 30 days.
 3. R2 demo images are publicly readable by URL.
-4. Gemini is an external dependency; availability and quota may temporarily disable autofill.
+4. OpenRouter is an external dependency; availability and quota may temporarily disable autofill.
 5. AI recognition may be inaccurate and cannot reliably determine expiration dates unless the date is visible.
 6. No status audit history; no expiry notifications; one uploaded image per food item.
 7. The unchanged items from `SPEC.md` §13 (capacity race, disable delay, Identity template remnants).
@@ -1095,13 +1086,13 @@ and both the login cookie and the image survive a new deployment
 
 ## Phase 7 — AI photo autofill
 
-18. `GeminiOptions`, `IFoodImageAnalyzer`, `FakeFoodImageAnalyzer`
-19. `GeminiFoodImageAnalyzer` (§8.8)
+18. `OpenRouterOptions`, `IFoodImageAnalyzer`, `FakeFoodImageAnalyzer`
+19. `OpenRouterFoodImageAnalyzer` (§8.8)
 20. `AiRateLimiter` and `FoodImageAnalysisService` (§8.4, §8.11)
 21. Result validation (§8.6)
 22. Disclosure UI, Analyze button, progress state, suggestion application (§8.3, §8.12, §8.14)
 23. AI unit tests (§7.1 AI section)
-24. Manual Gemini smoke test on Render
+24. Manual OpenRouter smoke test on Render
 
 Done when:
 
@@ -1112,8 +1103,8 @@ review and edit them, choose a shelf and other non-AI fields,
 and submit through the existing validated creation flow;
 
 AI failure still allows manual item creation,
-no live Gemini call is required by tests,
-and no Gemini credential reaches the browser
+no live OpenRouter call is required by tests,
+and no OpenRouter credential reaches the browser
 ```
 
 ## Phase 8 — Responsive UI
@@ -1232,7 +1223,7 @@ The required extension is complete only when all non-optional items are true.
 [ ] existing tests still pass
 [ ] §7.1 image, AI, and bootstrap unit tests pass
 [ ] CI runs restore, build, test, docker build on push and PR
-[ ] CI requires no R2, Gemini, or production database credentials
+[ ] CI requires no R2, OpenRouter, or production database credentials
 [ ] (optional) PostgreSQL integration tests pass
 [ ] (optional) R2 client tests pass
 [ ] (optional) Playwright tests pass
@@ -1242,11 +1233,11 @@ The required extension is complete only when all non-optional items are true.
 
 ```text
 [ ] AI is available only to authenticated users
-[ ] Analyze button is hidden when Gemini__Enabled=false
+[ ] Analyze button is hidden when OpenRouter__Enabled=false
 [ ] disclosure is visible before analysis
 [ ] image is normalized (1600 px, no metadata) before external submission
 [ ] API key remains server-side
-[ ] model is configuration-driven (default gemini-3.5-flash-lite)
+[ ] model is configuration-driven (default openai/gpt-4o-mini)
 [ ] structured output is validated server-side
 [ ] AI cannot set owner, shelf, sharing status, status, or PositionNote
 [ ] AI never creates the item directly
@@ -1256,7 +1247,7 @@ The required extension is complete only when all non-optional items are true.
 [ ] per-user rate limit is enforced (Singleton limiter)
 [ ] duplicate clicks do not create duplicate requests
 [ ] AI failure preserves the form
-[ ] manual creation works when Gemini is unavailable
+[ ] manual creation works when OpenRouter is unavailable
 [ ] automated tests use FakeFoodImageAnalyzer
 ```
 
@@ -1292,6 +1283,6 @@ When changing `Program.cs`, `Components/App.razor`, or `Components/Account/**`, 
 
 Do not replace working architecture merely because another architecture is more common.
 
-Do not add Repository pattern, MediatR, CQRS, AutoMapper, microservices, Redis, message queues, or Kubernetes unless a later specification explicitly requires them. Do not add a second image-processing library or a Gemini SDK.
+Do not add Repository pattern, MediatR, CQRS, AutoMapper, microservices, Redis, message queues, or Kubernetes unless a later specification explicitly requires them. Do not add a second image-processing library or a second AI SDK. Use only the official OpenAI package against OpenRouter.
 
 The purpose of this extension is to productionize and strengthen the existing application, not to rewrite it.

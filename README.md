@@ -11,7 +11,7 @@ Browser ═══ SignalR / HTTPS ═══▶ FridgeManager (.NET 10, Heroku we
                                        │
                     ┌──────────────────┼──────────────────┐
                     ▼                  ▼                  ▼
-           Heroku Postgres      Cloudflare R2      Google Gemini
+           Heroku Postgres      Cloudflare R2      OpenRouter
            app + Identity +     uploaded images    photo autofill
            Data Protection keys (public URL)       (processed image only)
 ```
@@ -22,7 +22,7 @@ Browser ═══ SignalR / HTTPS ═══▶ FridgeManager (.NET 10, Heroku we
 - Images: `IImageStorage` — local files in Development / docker compose, Cloudflare R2 in production
 - UI: `wwwroot/css/theme.css` (`fm-*` primitives)
 
-Spec: `[docs/SPEC.md](docs/SPEC.md)`. Extensions: `[docs/SPEC_EXTENSIONS.md](docs/SPEC_EXTENSIONS.md)`. Design: `[docs/DESIGN.md](docs/DESIGN.md)`. Decisions: `[docs/adr/](docs/adr/)`. Heroku deploy: `[docs/HEROKU_DEPLOYMENT.md](docs/HEROKU_DEPLOYMENT.md)`. Render/R2 setup (fallback): `[docs/PHASE6_MANUAL_STEPS.md](docs/PHASE6_MANUAL_STEPS.md)`. Gemini API key and smoke test: `[docs/PHASE7_MANUAL_STEPS.md](docs/PHASE7_MANUAL_STEPS.md)`. Security verification after deploy: `[docs/PHASE9_MANUAL_STEPS.md](docs/PHASE9_MANUAL_STEPS.md)`.
+Spec: `[docs/SPEC.md](docs/SPEC.md)`. Extensions: `[docs/SPEC_EXTENSIONS.md](docs/SPEC_EXTENSIONS.md)`. Design: `[docs/DESIGN.md](docs/DESIGN.md)`. Decisions: `[docs/adr/](docs/adr/)`. Heroku deploy: `[docs/HEROKU_DEPLOYMENT.md](docs/HEROKU_DEPLOYMENT.md)`. Render/R2 setup (fallback): `[docs/PHASE6_MANUAL_STEPS.md](docs/PHASE6_MANUAL_STEPS.md)`. OpenRouter API key and smoke test: `[docs/PHASE7_MANUAL_STEPS.md](docs/PHASE7_MANUAL_STEPS.md)`. Security verification after deploy: `[docs/PHASE9_MANUAL_STEPS.md](docs/PHASE9_MANUAL_STEPS.md)`.
 
 ## Local development
 
@@ -44,14 +44,14 @@ The app listens on [http://localhost:5226](http://localhost:5226) and [https://l
 
 `appsettings.json` sets `ImageStorage:Provider` to `Local`. Uploads are normalized to WebP and stored under `wwwroot/uploads/food-images/{yyyy}/{MM}/{guid}.webp`. `/uploads` is served only to signed-in users.
 
-Gemini is off by default. Local `dotnet run` uses `FakeFoodImageAnalyzer` unless you enable it with user-secrets (see [docs/PHASE7_MANUAL_STEPS.md](docs/PHASE7_MANUAL_STEPS.md)). Do not put production secrets in `appsettings*.json`.
+OpenRouter is off by default. Local `dotnet run` uses `FakeFoodImageAnalyzer` unless you enable it with user-secrets (see [docs/PHASE7_MANUAL_STEPS.md](docs/PHASE7_MANUAL_STEPS.md)). Do not put production secrets in `appsettings*.json`.
 
 ```bash
 dotnet build FridgeManager.slnx
 dotnet test tests/FridgeManager.Tests
 ```
 
-Automated tests use SQLite in memory, `FakeImageStorage`, and `FakeFoodImageAnalyzer`. They never need R2, Gemini, or a production database.
+Automated tests use SQLite in memory, `FakeImageStorage`, and `FakeFoodImageAnalyzer`. They never need R2, OpenRouter, or a production database.
 
 ## Continuous integration
 
@@ -83,7 +83,7 @@ Then open [http://localhost:8080](http://localhost:8080).
 | `admin@fridge.local`, `alice@`, `bob@`, `carol@fridge.local` | `Passw0rd!` | Bootstrap admin is `admin@fridge.local` (`Seed__Admin*`); the same demo set as Development |
 
 
-`ImageStorage__Provider=Local` and `Gemini__Enabled=false` are set in compose (offline demo; Analyze with AI is hidden). Do not put real production secrets in this file.
+`ImageStorage__Provider=Local` and `OpenRouter__Enabled=false` are set in compose (offline demo; Analyze with AI is hidden). Do not put real production secrets in this file.
 
 ## Production deployment (Heroku)
 
@@ -91,7 +91,7 @@ This branch deploys through Heroku GitHub Integration from `deploy/heroku`. Runb
 
 - Stack: `heroku-24`, official `heroku/dotnet` buildpack (not the container stack, not the Dockerfile).
 - Database: Heroku Postgres Essential-0 via the platform `DATABASE_URL`.
-- Images and AI: the same Cloudflare R2 bucket and Gemini settings as before.
+- Images and AI: the same Cloudflare R2 bucket and OpenRouter settings as before.
 - Formation: exactly **one** web dyno. Do not scale `web` above 1. Blazor Interactive Server has no Redis backplane.
 - Basic and Standard-1X both have 0.5 GB RAM; Standard-1X is not a larger machine. Use Standard-2X only if the dyno runs out of memory.
 
@@ -99,7 +99,7 @@ Do not set `PORT`, `DATABASE_URL`, or `ASPNETCORE_HTTP_PORTS` by hand. After the
 
 ## Production deployment (Render, fallback / legacy)
 
-Blueprint: `[render.yaml](render.yaml)`. Kept as the local/Render fallback. Step-by-step (R2 bucket, Blueprint secrets, smoke test): `[docs/PHASE6_MANUAL_STEPS.md](docs/PHASE6_MANUAL_STEPS.md)`. Gemini key and Render smoke test: `[docs/PHASE7_MANUAL_STEPS.md](docs/PHASE7_MANUAL_STEPS.md)`.
+Blueprint: `[render.yaml](render.yaml)`. Kept as the local/Render fallback. Step-by-step (R2 bucket, Blueprint secrets, smoke test): `[docs/PHASE6_MANUAL_STEPS.md](docs/PHASE6_MANUAL_STEPS.md)`. OpenRouter key and Render smoke test: `[docs/PHASE7_MANUAL_STEPS.md](docs/PHASE7_MANUAL_STEPS.md)`.
 
 
 | Variable                                                           | Purpose                                                                                 |
@@ -114,11 +114,11 @@ Blueprint: `[render.yaml](render.yaml)`. Kept as the local/Render fallback. Step
 | `R2__SecretAccessKey`                                              | R2 API token secret                                                                     |
 | `R2__BucketName`                                                   | Bucket name                                                                             |
 | `R2__PublicBaseUrl`                                                | Public prefix, e.g. `https://pub-….r2.dev`                                              |
-| `Gemini__Enabled`                                                  | `true` on Render; `false` in compose / local unless user-secrets override               |
-| `Gemini__ApiKey`                                                   | Google AI Studio key; required when Enabled is true; never sent to the browser          |
-| `Gemini__Model`                                                    | default `gemini-3.5-flash-lite`                                                         |
-| `Gemini__TimeoutSeconds`                                           | default `45`                                                                            |
-| `Gemini__MaxRequestsPerUserPerHour`                                | default `20`                                                                            |
+| `OpenRouter__Enabled`                                              | `true` on Render; `false` in compose / local unless user-secrets override               |
+| `OpenRouter__ApiKey`                                               | OpenRouter key; required when Enabled is true; never sent to the browser                |
+| `OpenRouter__Model`                                                | default `openai/gpt-4o-mini`                                                            |
+| `OpenRouter__TimeoutSeconds`                                       | default `45`                                                                            |
+| `OpenRouter__MaxRequestsPerUserPerHour`                            | default `20`                                                                            |
 | `Seed__AdminUserName` / `Seed__AdminEmail` / `Seed__AdminPassword` | first Admin; remove after that account exists                                           |
 | `Seed__DemoData`                                                   | `true` to load the SPEC §9 demo set once                                                |
 
@@ -135,11 +135,11 @@ R2 credentials never reach the browser. Demo images on R2 are publicly readable 
 
 ## AI photo autofill
 
-On `/food/new`, after you choose a photo, **Analyze with AI** sends a processed copy (oriented, metadata stripped, long edge capped at 1600 px, re-encoded as WebP) to Google Gemini. The original filename, EXIF, user identity, and database ids are not sent. Suggestions may fill **Name**, **Category**, **Expiration date**, **Size**, and **Note** — fields you have already typed or selected are left alone. Review and edit them before saving; submit still goes through the normal quota, shelf-capacity, and authorization checks. The model must not invent an expiration date unless one is visibly printed. Packaging cautions belong in Note; analysis problems (no food found, unreadable date) appear as warnings.
+On `/food/new`, after you choose a photo, **Analyze with AI** sends a processed copy (oriented, metadata stripped, long edge capped at 1600 px, re-encoded as WebP) to OpenRouter. The original filename, EXIF, user identity, and database ids are not sent. Suggestions may fill **Name**, **Category**, **Expiration date**, **Size**, and **Note** — fields you have already typed or selected are left alone. Review and edit them before saving; submit still goes through the normal quota, shelf-capacity, and authorization checks. The model must not invent an expiration date unless one is visibly printed. Packaging cautions belong in Note; analysis problems (no food found, unreadable date) appear as warnings.
 
-Do not upload sensitive or confidential images. Review [Google Gemini API terms](https://ai.google.dev/gemini-api/terms) before treating this as a production system. Availability and quota of Gemini may temporarily hide or fail autofill; you can always create the item by hand.
+Do not upload sensitive or confidential images. Review [OpenRouter terms](https://openrouter.ai/terms) before treating this as a production system. Availability and quota of OpenRouter may temporarily hide or fail autofill; you can always create the item by hand.
 
-Local and `docker compose` leave `Gemini__Enabled=false`, so the button is not shown. Automated tests use `FakeFoodImageAnalyzer` and never call the live API.
+Local and `docker compose` leave `OpenRouter__Enabled=false`, so the button is not shown. Automated tests use `FakeFoodImageAnalyzer` and never call the live API.
 
 ## Migrations and first login
 
@@ -179,7 +179,7 @@ These are accepted. Do not “fix” them in this codebase.
 6. **Size units are an approximation** and do not reflect real volume.
 7. **Disable delay.** After an admin disables a member, an existing circuit may last until security-stamp revalidation (up to 30 minutes). New logins are blocked immediately.
 8. **Identity template remnants.** Passkey, 2FA, and Forgot-password pages from the template may remain. External login does not create accounts.
-9. **Gemini** is an external dependency; availability and quota may temporarily disable autofill. Recognition can be wrong and will not invent expiration dates.
+9. **OpenRouter** is an external dependency; availability and quota may temporarily disable autofill. Recognition can be wrong and will not invent expiration dates.
 10. **One uploaded image per food item.** Replacing a photo best-effort deletes the previous object. There is no status history and no expiry notification.
 
 

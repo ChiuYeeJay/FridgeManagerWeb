@@ -19,7 +19,7 @@ Browser
   └─ .NET 10 / Blazor Interactive Server
        ├─ Heroku Postgres Essential-0
        ├─ Cloudflare R2
-       └─ Google Gemini API
+       └─ OpenRouter API
 ```
 
 This is a temporary demo deployment for approximately one week. Do not introduce infrastructure intended for long-term operations or horizontal scaling.
@@ -68,7 +68,7 @@ The following confirmed conditions mean this migration does not require changes 
   - startup migrations;
   - production bootstrap admin/demo seeding;
   - Cloudflare R2;
-  - Gemini.
+  - OpenRouter.
 - Data Protection keys are already stored in PostgreSQL and do not depend on the dyno filesystem.
 - Images use R2 in production and do not depend on the dyno filesystem.
 - The existing Dockerfile, Docker Compose configuration, and Render Blueprint remain valid local/Render fallbacks.
@@ -170,7 +170,7 @@ This document must be a self-contained runbook containing at least the material 
 - troubleshooting;
 - why horizontal scaling must not be used.
 
-The document may contain placeholders only. It must not include real secrets, passwords, R2 keys, Gemini keys, or database URLs.
+The document may contain placeholders only. It must not include real secrets, passwords, R2 keys, OpenRouter keys, or database URLs.
 
 ## 4.3 Update `README.md`
 
@@ -182,7 +182,7 @@ Required changes:
 2. Update the hosting/database labels in the architecture diagram:
    - app: Heroku web dyno;
    - database: Heroku Postgres;
-   - keep R2 and Gemini unchanged.
+   - keep R2 and OpenRouter unchanged.
 3. Add a `Production deployment (Heroku)` section before the existing Render deployment section, linking to `docs/HEROKU_DEPLOYMENT.md`.
 4. Keep the existing Render section and clearly label it as a fallback/legacy alternative; do not remove the `render.yaml` documentation.
 5. Explicitly document that the Heroku deployment must remain on a single web dyno.
@@ -192,7 +192,7 @@ Required changes:
 
 Update only deployment-related facts:
 
-- add to the deployment row that `deploy/heroku` uses the official `heroku/dotnet` buildpack, Heroku Postgres, R2, and Gemini;
+- add to the deployment row that `deploy/heroku` uses the official `heroku/dotnet` buildpack, Heroku Postgres, R2, and OpenRouter;
 - keep `Dockerfile` identified as the Render/local fallback;
 - add the path and purpose of `docs/HEROKU_DEPLOYMENT.md`;
 - emphasize exactly one web dyno on Heroku;
@@ -205,7 +205,7 @@ Add the following information in deployment/folder-related sections:
 - the Heroku branch uses the native .NET buildpack;
 - the Dockerfile is not the Heroku runtime path;
 - Heroku Postgres connects through the platform-provided `DATABASE_URL`;
-- the R2 and Gemini providers remain unchanged;
+- the R2 and OpenRouter providers remain unchanged;
 - startup migration/bootstrap behavior remains unchanged;
 - the production formation is a single web dyno.
 
@@ -310,11 +310,11 @@ R2__SecretAccessKey=<secret>
 R2__BucketName=<existing bucket>
 R2__PublicBaseUrl=<existing public base URL>
 
-Gemini__Enabled=true
-Gemini__ApiKey=<secret>
-Gemini__Model=gemini-3.5-flash-lite
-Gemini__TimeoutSeconds=45
-Gemini__MaxRequestsPerUserPerHour=20
+OpenRouter__Enabled=true
+OpenRouter__ApiKey=<secret>
+OpenRouter__Model=openai/gpt-4o-mini
+OpenRouter__TimeoutSeconds=45
+OpenRouter__MaxRequestsPerUserPerHour=20
 
 Seed__DemoData=true
 Seed__AdminUserName=<bootstrap admin username>
@@ -325,10 +325,10 @@ Seed__AdminPassword=<strong temporary bootstrap password>
 If AI will not be demonstrated temporarily:
 
 ```text
-Gemini__Enabled=false
+OpenRouter__Enabled=false
 ```
 
-In that case, `Gemini__ApiKey` does not need to be set.
+In that case, `OpenRouter__ApiKey` does not need to be set.
 
 Do not set:
 
@@ -432,7 +432,7 @@ The runtime log must confirm:
 - roles/bootstrap succeeded;
 - there is no database SSL error;
 - there is no R2 options validation error;
-- when Gemini is enabled, there is no missing-key validation error;
+- when OpenRouter is enabled, there is no missing-key validation error;
 - the dyno is not crash-looping and has no memory quota error.
 
 Browser smoke test:
@@ -443,7 +443,7 @@ Browser smoke test:
 4. Confirm `/food` loads and filters can be applied.
 5. Create one food item.
 6. Upload an image and confirm it is displayed from R2.
-7. When Gemini is enabled, run **Analyze with AI** once.
+7. When OpenRouter is enabled, run **Analyze with AI** once.
 8. Edit the item and change its status.
 9. Sign out and sign back in.
 10. Keep the page open for a period of time and confirm the Blazor circuit/WebSocket does not continuously reconnect.
@@ -624,7 +624,7 @@ Check the following first:
 
 - whether the seed admin values are complete before the first Admin is created;
 - whether all five R2 values are present when the R2 provider is enabled;
-- whether the API key exists when Gemini is enabled;
+- whether the API key exists when OpenRouter is enabled;
 - whether `DATABASE_URL` is provided by the add-on;
 - whether migration succeeded;
 - whether the app stack was incorrectly set to `container`.
@@ -696,7 +696,7 @@ All of the following conditions must be satisfied:
 - [ ] Heroku successfully publishes the root `.slnx` using the official .NET buildpack.
 - [ ] The Heroku formation is exactly 1 web dyno.
 - [ ] `/health` returns successfully.
-- [ ] PostgreSQL migration, login, CRUD, R2, and Gemini smoke tests succeed.
+- [ ] PostgreSQL migration, login, CRUD, R2, and OpenRouter smoke tests succeed.
 - [ ] The documentation clearly states that scaling to zero does not stop database billing.
 - [ ] The documentation clearly describes the complete cleanup/app-destroy procedure.
 

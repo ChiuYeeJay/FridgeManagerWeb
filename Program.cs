@@ -67,7 +67,7 @@ builder.Services.AddHealthChecks();
 builder.Services.Configure<SeedOptions>(builder.Configuration.GetSection(SeedOptions.SectionName));
 builder.Services.Configure<AppOptions>(builder.Configuration.GetSection(AppOptions.SectionName));
 AddImageStorage(builder);
-AddGemini(builder);
+AddOpenRouter(builder);
 
 builder.Services.AddSingleton<IEmailSender<ApplicationUser>, IdentityNoOpEmailSender>();
 builder.Services.AddScoped<IInventoryService, InventoryService>();
@@ -187,29 +187,39 @@ static void AddImageStorage(WebApplicationBuilder builder)
     }
 }
 
-static void AddGemini(WebApplicationBuilder builder)
+static void AddOpenRouter(WebApplicationBuilder builder)
 {
-    builder.Services.AddOptions<GeminiOptions>()
-        .Bind(builder.Configuration.GetSection(GeminiOptions.SectionName))
+    builder.Services.AddOptions<OpenRouterOptions>()
+        .Bind(builder.Configuration.GetSection(OpenRouterOptions.SectionName))
         .Validate(
             o => !o.Enabled || !string.IsNullOrWhiteSpace(o.ApiKey),
-            "Gemini:ApiKey is required when Gemini:Enabled is true.")
+            "OpenRouter:ApiKey is required when OpenRouter:Enabled is true.")
         .ValidateOnStart();
 
     builder.Services.AddSingleton<AiRateLimiter>();
     builder.Services.AddScoped<IFoodImageAnalysisService, FoodImageAnalysisService>();
 
-    var gemini = builder.Configuration.GetSection(GeminiOptions.SectionName).Get<GeminiOptions>()
-        ?? new GeminiOptions();
-    if (gemini.Enabled)
+    var openRouter = builder.Configuration.GetSection(OpenRouterOptions.SectionName).Get<OpenRouterOptions>()
+        ?? new OpenRouterOptions();
+    if (openRouter.Enabled)
     {
-        var timeoutSeconds = gemini.TimeoutSeconds > 0 ? gemini.TimeoutSeconds : 45;
-        builder.Services.AddHttpClient(GeminiOptions.HttpClientName, client =>
+        var timeoutSeconds = openRouter.TimeoutSeconds > 0 ? openRouter.TimeoutSeconds : 45;
+        var http = new HttpClient
         {
-            client.BaseAddress = new Uri("https://generativelanguage.googleapis.com/");
-            client.Timeout = TimeSpan.FromSeconds(timeoutSeconds);
-        });
-        builder.Services.AddScoped<IFoodImageAnalyzer, GeminiFoodImageAnalyzer>();
+            Timeout = TimeSpan.FromSeconds(timeoutSeconds)
+        };
+        if (!string.IsNullOrWhiteSpace(openRouter.HttpReferer))
+        {
+            http.DefaultRequestHeaders.TryAddWithoutValidation("HTTP-Referer", openRouter.HttpReferer);
+        }
+
+        if (!string.IsNullOrWhiteSpace(openRouter.AppTitle))
+        {
+            http.DefaultRequestHeaders.TryAddWithoutValidation("X-Title", openRouter.AppTitle);
+        }
+
+        builder.Services.AddSingleton(OpenRouterFoodImageAnalyzer.CreateChatClient(openRouter, http));
+        builder.Services.AddScoped<IFoodImageAnalyzer, OpenRouterFoodImageAnalyzer>();
     }
     else
     {

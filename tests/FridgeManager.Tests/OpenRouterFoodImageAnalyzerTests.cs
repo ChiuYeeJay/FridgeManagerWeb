@@ -4,20 +4,19 @@ using System.Text.Json;
 using FridgeManager.Data.Enums;
 using FridgeManager.Services;
 using Microsoft.Extensions.Logging.Abstractions;
-using Microsoft.Extensions.Options;
 
 namespace FridgeManager.Tests;
 
-public sealed class GeminiFoodImageAnalyzerTests
+public sealed class OpenRouterFoodImageAnalyzerTests
 {
     [Fact]
     public async Task AnalyzeAsync_ValidJson_MapsFieldsAndSendsExpectedRequest()
     {
         var handler = new StubHandler
         {
-            Response = _ => JsonOk(Envelope("""{"name":"Milk","category":"Drink","expirationDate":"2026-12-31","sizeUnits":2,"note":"Keep upright","warnings":[]}"""))
+            Response = _ => JsonOk(Completion("""{"name":"Milk","category":"Drink","expirationDate":"2026-12-31","sizeUnits":2,"note":"Keep upright","warnings":[]}"""))
         };
-        var analyzer = Create(handler, apiKey: "test-key", model: "gemini-3.5-flash-lite");
+        var analyzer = Create(handler, apiKey: "test-key", model: "openai/gpt-4o-mini");
 
         var result = await analyzer.AnalyzeAsync([1, 2, 3], ImageNormalizer.WebpContentType);
 
@@ -29,11 +28,14 @@ public sealed class GeminiFoodImageAnalyzerTests
         Assert.Equal("Keep upright", result.Value.Note);
 
         Assert.NotNull(handler.Request);
-        Assert.Equal("test-key", handler.Request.Headers.GetValues("x-goog-api-key").Single());
-        Assert.Contains("v1beta/models/gemini-3.5-flash-lite:generateContent", handler.Request.RequestUri!.ToString(), StringComparison.Ordinal);
-        Assert.Contains("inlineData", handler.Body, StringComparison.Ordinal);
-        Assert.Contains("responseSchema", handler.Body, StringComparison.Ordinal);
-        Assert.Contains("\"thinkingLevel\":\"minimal\"", handler.Body, StringComparison.Ordinal);
+        Assert.Equal("Bearer test-key", handler.Request.Headers.Authorization?.ToString());
+        Assert.Contains("/chat/completions", handler.Request.RequestUri!.ToString(), StringComparison.Ordinal);
+        Assert.Contains("openai/gpt-4o-mini", handler.Body, StringComparison.Ordinal);
+        Assert.Contains("food_image_analysis", handler.Body, StringComparison.Ordinal);
+        Assert.Contains("json_schema", handler.Body, StringComparison.Ordinal);
+        Assert.Contains("\"reasoning\"", handler.Body, StringComparison.Ordinal);
+        Assert.Contains("\"effort\":\"none\"", handler.Body, StringComparison.Ordinal);
+        Assert.Contains("\"enabled\":false", handler.Body, StringComparison.Ordinal);
         Assert.Contains("both palms can wrap around it", handler.Body, StringComparison.Ordinal);
         Assert.Contains("note is an optional short note", handler.Body, StringComparison.Ordinal);
         Assert.Contains("problems with this analysis", handler.Body, StringComparison.Ordinal);
@@ -68,37 +70,6 @@ public sealed class GeminiFoodImageAnalyzerTests
     }
 
     [Fact]
-    public async Task AnalyzeAsync_SkipsThoughtPartAndUsesJsonText()
-    {
-        var envelope = JsonSerializer.Serialize(new
-        {
-            candidates = new[]
-            {
-                new
-                {
-                    finishReason = "STOP",
-                    content = new
-                    {
-                        parts = new object[]
-                        {
-                            new { thought = true, text = "I am thinking about the yogurt." },
-                            new { text = """{"name":"Greek Yogurt","category":"Snack","expirationDate":null,"sizeUnits":1,"warnings":[]}""" }
-                        }
-                    }
-                }
-            }
-        });
-        var handler = new StubHandler { Response = _ => JsonOk(envelope) };
-        var analyzer = Create(handler);
-
-        var result = await analyzer.AnalyzeAsync([1], ImageNormalizer.WebpContentType);
-
-        Assert.True(result.Success);
-        Assert.Equal("Greek Yogurt", result.Value!.Name);
-        Assert.Equal(FoodCategory.Snack, result.Value.Category);
-    }
-
-    [Fact]
     public async Task AnalyzeAsync_UnwrapsMarkdownFence()
     {
         var fenced = """
@@ -106,7 +77,7 @@ public sealed class GeminiFoodImageAnalyzerTests
             {"name":"Milk","category":"Drink","expirationDate":null,"sizeUnits":2,"warnings":[]}
             ```
             """;
-        var handler = new StubHandler { Response = _ => JsonOk(Envelope(fenced)) };
+        var handler = new StubHandler { Response = _ => JsonOk(Completion(fenced)) };
         var analyzer = Create(handler);
 
         var result = await analyzer.AnalyzeAsync([1], ImageNormalizer.WebpContentType);
@@ -122,13 +93,16 @@ public sealed class GeminiFoodImageAnalyzerTests
         var handler = new StubHandler
         {
             Response = _ => new HttpResponseMessage(HttpStatusCode.InternalServerError)
+            {
+                Content = new StringContent("""{"error":{"message":"boom"}}""", Encoding.UTF8, "application/json")
+            }
         };
         var analyzer = Create(handler);
 
         var result = await analyzer.AnalyzeAsync([1], ImageNormalizer.WebpContentType);
 
         Assert.False(result.Success);
-        Assert.Equal(GeminiFoodImageAnalyzer.FailureMessage, result.Error);
+        Assert.Equal(OpenRouterFoodImageAnalyzer.FailureMessage, result.Error);
         Assert.Equal(1, handler.Calls);
     }
 
@@ -140,9 +114,9 @@ public sealed class GeminiFoodImageAnalyzerTests
             Response = n => n == 1
                 ? new HttpResponseMessage(HttpStatusCode.ServiceUnavailable)
                 {
-                    Content = new StringContent("""{"error":{"status":"UNAVAILABLE"}}""", Encoding.UTF8, "application/json")
+                    Content = new StringContent("""{"error":{"message":"unavailable"}}""", Encoding.UTF8, "application/json")
                 }
-                : JsonOk(Envelope("""{"name":"Milk","category":"Drink","expirationDate":null,"sizeUnits":1,"warnings":[]}"""))
+                : JsonOk(Completion("""{"name":"Milk","category":"Drink","expirationDate":null,"sizeUnits":1,"warnings":[]}"""))
         };
         var analyzer = Create(handler);
 
@@ -160,7 +134,7 @@ public sealed class GeminiFoodImageAnalyzerTests
         {
             Response = _ => new HttpResponseMessage(HttpStatusCode.ServiceUnavailable)
             {
-                Content = new StringContent("""{"error":{"status":"UNAVAILABLE"}}""", Encoding.UTF8, "application/json")
+                Content = new StringContent("""{"error":{"message":"unavailable"}}""", Encoding.UTF8, "application/json")
             }
         };
         var analyzer = Create(handler);
@@ -168,7 +142,7 @@ public sealed class GeminiFoodImageAnalyzerTests
         var result = await analyzer.AnalyzeAsync([1], ImageNormalizer.WebpContentType);
 
         Assert.False(result.Success);
-        Assert.Equal(GeminiFoodImageAnalyzer.UnavailableMessage, result.Error);
+        Assert.Equal(OpenRouterFoodImageAnalyzer.UnavailableMessage, result.Error);
         Assert.Equal(2, handler.Calls);
     }
 
@@ -178,29 +152,32 @@ public sealed class GeminiFoodImageAnalyzerTests
         var handler = new StubHandler
         {
             Response = _ => new HttpResponseMessage(HttpStatusCode.TooManyRequests)
+            {
+                Content = new StringContent("""{"error":{"message":"rate limited"}}""", Encoding.UTF8, "application/json")
+            }
         };
         var analyzer = Create(handler);
 
         var result = await analyzer.AnalyzeAsync([1], ImageNormalizer.WebpContentType);
 
         Assert.False(result.Success);
-        Assert.Equal(GeminiFoodImageAnalyzer.QuotaMessage, result.Error);
+        Assert.Equal(OpenRouterFoodImageAnalyzer.QuotaMessage, result.Error);
         Assert.Equal(1, handler.Calls);
     }
 
     [Fact]
-    public async Task AnalyzeAsync_EmptyCandidates_Fails()
+    public async Task AnalyzeAsync_EmptyChoices_Fails()
     {
         var handler = new StubHandler
         {
-            Response = _ => JsonOk("""{"candidates":[]}""")
+            Response = _ => JsonOk("""{"id":"chatcmpl-1","object":"chat.completion","choices":[]}""")
         };
         var analyzer = Create(handler);
 
         var result = await analyzer.AnalyzeAsync([1], ImageNormalizer.WebpContentType);
 
         Assert.False(result.Success);
-        Assert.Equal(GeminiFoodImageAnalyzer.FailureMessage, result.Error);
+        Assert.Equal(OpenRouterFoodImageAnalyzer.FailureMessage, result.Error);
     }
 
     [Fact]
@@ -208,14 +185,14 @@ public sealed class GeminiFoodImageAnalyzerTests
     {
         var handler = new StubHandler
         {
-            Response = _ => JsonOk(Envelope("not json"))
+            Response = _ => JsonOk(Completion("not json"))
         };
         var analyzer = Create(handler);
 
         var result = await analyzer.AnalyzeAsync([1], ImageNormalizer.WebpContentType);
 
         Assert.False(result.Success);
-        Assert.Equal(GeminiFoodImageAnalyzer.FailureMessage, result.Error);
+        Assert.Equal(OpenRouterFoodImageAnalyzer.FailureMessage, result.Error);
     }
 
     [Fact]
@@ -230,7 +207,7 @@ public sealed class GeminiFoodImageAnalyzerTests
         var result = await analyzer.AnalyzeAsync([1], ImageNormalizer.WebpContentType);
 
         Assert.False(result.Success);
-        Assert.Equal(GeminiFoodImageAnalyzer.TimeoutMessage, result.Error);
+        Assert.Equal(OpenRouterFoodImageAnalyzer.TimeoutMessage, result.Error);
     }
 
     [Fact]
@@ -238,7 +215,7 @@ public sealed class GeminiFoodImageAnalyzerTests
     {
         var handler = new StubHandler
         {
-            Response = _ => JsonOk(Envelope("""{"name":"Milk","category":"Drink","expirationDate":null,"sizeUnits":1,"warnings":[]}"""))
+            Response = _ => JsonOk(Completion("""{"name":"Milk","category":"Drink","expirationDate":null,"sizeUnits":1,"warnings":[]}"""))
         };
         var analyzer = Create(handler);
         using var cts = new CancellationTokenSource();
@@ -249,29 +226,38 @@ public sealed class GeminiFoodImageAnalyzerTests
     }
 
     private static StubHandler OkHandler(string suggestionJson)
-        => new() { Response = _ => JsonOk(Envelope(suggestionJson)) };
+        => new() { Response = _ => JsonOk(Completion(suggestionJson)) };
 
-    private static GeminiFoodImageAnalyzer Create(
+    private static OpenRouterFoodImageAnalyzer Create(
         StubHandler handler,
         string apiKey = "test-key",
-        string model = "gemini-3.5-flash-lite")
+        string model = "openai/gpt-4o-mini")
     {
         var client = new HttpClient(handler)
         {
-            BaseAddress = new Uri("https://generativelanguage.googleapis.com/")
+            BaseAddress = new Uri("https://openrouter.ai/api/v1/")
         };
-        return new GeminiFoodImageAnalyzer(
-            new StubHttpClientFactory(client),
-            Options.Create(new GeminiOptions { ApiKey = apiKey, Model = model, Enabled = true }),
-            NullLogger<GeminiFoodImageAnalyzer>.Instance);
+        var chat = OpenRouterFoodImageAnalyzer.CreateChatClient(
+            new OpenRouterOptions { ApiKey = apiKey, Model = model, Enabled = true },
+            client);
+        return new OpenRouterFoodImageAnalyzer(chat, NullLogger<OpenRouterFoodImageAnalyzer>.Instance);
     }
 
-    private static string Envelope(string suggestionJson)
+    private static string Completion(string suggestionJson)
         => JsonSerializer.Serialize(new
         {
-            candidates = new[]
+            id = "chatcmpl-test",
+            @object = "chat.completion",
+            created = 1_700_000_000,
+            model = "openai/gpt-4o-mini",
+            choices = new[]
             {
-                new { content = new { parts = new[] { new { text = suggestionJson } } } }
+                new
+                {
+                    index = 0,
+                    message = new { role = "assistant", content = suggestionJson },
+                    finish_reason = "stop"
+                }
             }
         });
 
@@ -280,11 +266,6 @@ public sealed class GeminiFoodImageAnalyzerTests
         {
             Content = new StringContent(body, Encoding.UTF8, "application/json")
         };
-
-    private sealed class StubHttpClientFactory(HttpClient client) : IHttpClientFactory
-    {
-        public HttpClient CreateClient(string name) => client;
-    }
 
     private sealed class StubHandler : HttpMessageHandler
     {

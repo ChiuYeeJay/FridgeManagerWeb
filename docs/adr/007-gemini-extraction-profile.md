@@ -1,6 +1,6 @@
 # ADR-007: Gemini extraction profile
 
-- Status: Accepted
+- Status: Superseded by [ADR-008](008-openrouter-openai-sdk.md) for transport and configuration names. The extraction rules below (Note, grab-test size, 45 s timeout, warmup, distinct failure sentences) still apply.
 - Date: 2026-09-06
 
 ## Context
